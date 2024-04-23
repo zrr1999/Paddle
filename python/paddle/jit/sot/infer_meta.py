@@ -86,8 +86,14 @@ class MetaInfo:
             self.shape, dtype=self.dtype, stop_gradient=self.stop_gradient
         )
 
-    def guard_str(self):
-        return f"({self.shape}, {self.dtype}, {self.stop_gradient})"
+    def guard_str(self, dynamic_axes: list[int] | None = None):
+        if dynamic_axes is not None:
+            shape = [*self.shape]
+            for axis in dynamic_axes:
+                shape[axis] = -1
+        else:
+            shape = list(self.shape)
+        return f"({shape}, {self.dtype}, {self.stop_gradient})"
 
     def __repr__(self):
         return meta_str(self.shape, self.dtype, self.stop_gradient)
@@ -194,9 +200,10 @@ class VariableCreator:
         with paddle.base.framework._dygraph_guard(None), UniqueNameGuard(
             self.var_name_generator
         ):
-            args, kwargs = convert_meta_to_variable(
-                args
-            ), convert_meta_to_variable(kwargs)
+            args, kwargs = (
+                convert_meta_to_variable(args),
+                convert_meta_to_variable(kwargs),
+            )
 
             with paddle.static.program_guard(
                 self.main_program, self.startup_program

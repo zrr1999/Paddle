@@ -327,6 +327,7 @@ class TensorVariable(VariableBase):
         self.origin_meta = self.meta
         self.var_name = TensorVariable.var_name_generator.next()
         self.graph.side_effects.record_mutable_variable(self)
+        self.dynamic_axes: list[int] | None = None
 
     def __len__(self):
         if self.meta.shape[0] == -1:
@@ -373,10 +374,9 @@ class TensorVariable(VariableBase):
     @check_guard
     def make_stringify_guard(self) -> list[StringifyExpression]:
         frame_value_tracer = self.tracker.trace_value_from_frame()
-
         return [
             StringifyExpression(
-                f"MetaInfo.from_tensor({{}}).guard_str() == '{self.origin_meta.guard_str()}'",
+                f"MetaInfo.from_tensor({{}}).guard_str({self.dynamic_axes}) == '{self.origin_meta.guard_str(self.dynamic_axes)}'",
                 [frame_value_tracer],
                 union_free_vars(
                     {"MetaInfo": MetaInfo},

@@ -60,6 +60,7 @@ class OpcodeExecutorCache:
     def __init__(self):
         self.cache = {}
         self.translate_count = 0
+        self.guarded_shape_cache = {}
 
     def clear(self):
         """
@@ -141,9 +142,10 @@ class OpcodeExecutorCache:
         Returns:
             tuple[CustomCode, Guard]: The cache getter function and a guarded function for the translated code object.
         """
-        code: types.CodeType = frame.f_code
         self.translate_count += 1
-        custom_new_code, guard_fn = start_translate(frame, **kwargs)
+        custom_new_code, guard_fn = start_translate(
+            frame, guarded_shape_cache=self.guarded_shape_cache, **kwargs
+        )
         return custom_new_code, guard_fn
 
     def analyse_guard_global_object(self, guard_fn):

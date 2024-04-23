@@ -155,6 +155,56 @@ class VariableLoader:
             self._pycode_gen.gen_load(self._store_var_info[var.id])
 
 
+class DynamicShape:
+    def __init__(self, shape: list[int]):
+        self.shape = shape
+
+    @classmethod
+    def generate(
+        cls, shape1: list[int] | DynamicShape, shape2: list[int] | DynamicShape
+    ):
+        assert len(shape1) == len(
+            shape2
+        ), "shape1 and shape2 must have the same length."
+        new_shape = []
+        for i, j in zip(shape1, shape2):
+            if i == j:
+                new_shape.append(i)
+            else:
+                new_shape.append(-1)
+        return cls(new_shape)
+
+    def get_shape(self):
+        return self.shape
+
+    def get_dynamic_axes(self):
+        return [i for i, s in enumerate(self.shape) if s == -1]
+
+    def __len__(self):
+        return len(self.shape)
+
+    def __iter__(self):
+        return iter(self.shape)
+
+    def __eq__(self, other) -> bool:
+        if isinstance(other, DynamicShape):
+            other_shape = other.shape
+        else:
+            other_shape = list(other)
+        if len(self.shape) != len(other_shape):
+            return False
+        for i, j in zip(self.shape, other_shape):
+            assert isinstance(i, int) and isinstance(
+                j, int
+            ), "shape must be a tuple of int."
+            if i != -1 and j != -1 and i != j:
+                return False
+        return True
+
+    def __str__(self) -> str:
+        return f"{self.shape}"
+
+
 class FunctionGraph:
     """
     A Graph representation corresponding to each FunctionFrame
@@ -176,12 +226,20 @@ class FunctionGraph:
         ],
     )
 
-    def __init__(self, frame, **kwargs):
+    def __init__(
+        self,
+        frame,
+        *,
+        guarded_shape_cache: dict[str, list[DynamicShape]],
+        **kwargs,
+    ):
         self.sir_ctx = SymbolicTraceContext()
         self.inner_out = set()
         self.input_variables = []  # Store variables required within a function
         self.pycode_gen = PyCodeGen(frame, disable_eval_frame=True)
         self.side_effects = SideEffects()
+        # for every guard Tensor, we cache its shape and record the shape counts.
+        self.guarded_shape_cache = guarded_shape_cache
         self._global_guarded_variables: OrderedSet[VariableBase] = OrderedSet()
         self._print_variables = []
         self._inplace_tensors = OrderedSet()
@@ -279,14 +337,39 @@ class FunctionGraph:
     @event_register("guard_fn")
     def guard_fn(self) -> Guard:
         with tmp_name_guard():
-            guards = []
+            guards: list[StringifyExpression] = []
             with EventGuard("guard_fn: find vars and make stringify guard"):
                 for variable in find_traceable_vars(
                     self.input_variables + list(self._global_guarded_variables)
                 ):
+                    if isinstance(variable, TensorVariable):
+                        from paddle.jit.sot.opcode_translator.executor.tracker import (
+                            LocalTracker,
+                        )
+
+                        if isinstance(variable.tracker, LocalTracker):
+                            name = variable.tracker.name
+                            if name in self.guarded_shape_cache:
+                                guarded_shape_cache = self.guarded_shape_cache[
+                                    name
+                                ]
+                                shape = DynamicShape.generate(
+                                    guarded_shape_cache[-1].shape,
+                                    variable.shape.get_py_value(),
+                                )
+                                variable.dynamic_axes = shape.get_dynamic_axes()
+                                log(
+                                    2,
+                                    f"[Cache]: Use dynamic shape: {variable.dynamic_axes} ({guarded_shape_cache[-1].shape}, {variable.shape.get_py_value()})\n",
+                                )
+                                guarded_shape_cache.append(shape)
+                            else:
+                                self.guarded_shape_cache[name] = [
+                                    DynamicShape(variable.shape.get_py_value())
+                                ]
                     guards.extend(variable.make_stringify_guard())
 
-            guards = OrderedSet(guards)
+            guards = OrderedSet(guards)  # type: ignore
 
             for guard in guards:
                 assert isinstance(
