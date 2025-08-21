@@ -13,7 +13,12 @@
 // limitations under the License.
 #pragma once
 
+#include "paddle/common/enforce.h"
+#include "paddle/common/errors.h"
 #include "paddle/phi/common/data_type.h"
+#include "unordered_set"
+#include "vector"
+
 namespace phi {
 
 inline int DataTypeToNum(const DataType& dtype) {

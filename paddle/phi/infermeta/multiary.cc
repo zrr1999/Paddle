@@ -1385,7 +1385,7 @@ void ConcatInferMeta(const std::vector<const MetaTensor*>& x,
       phi::funcs::ComputeAndCheckShape(config.is_runtime, x_dims, axis);
 
   out->set_dims(out_dim);
-  out->set_dtype(x.at(0)->dtype());
+  out->set_dtype(funcs::FindHighestPrecisionType(x));
   out->set_layout(x.at(0)->layout());
   out->share_lod(*x.at(0));
 }

@@ -15,7 +15,9 @@
 #pragma once
 
 #include "paddle/common/errors.h"
+#include "paddle/phi/common/type_promotion.h"
 #include "paddle/phi/core/enforce.h"
+#include "paddle/phi/kernels/cast_kernel.h"
 namespace phi {
 namespace funcs {
 
@@ -89,6 +91,60 @@ static inline phi::DDim ComputeAndCheckShape(
     }
   }
   return out_dims;
+}
+
+// From a multi-input, gather only nonempty inputs
+static const std::vector<const DenseTensor*> ReduceMultiInput(
+    const std::vector<const DenseTensor*>& inputs) {
+  std::vector<const DenseTensor*> reduced(inputs.size());
+  auto end_it = std::copy_if(
+      inputs.begin(), inputs.end(), reduced.begin(), [](const DenseTensor* t) {
+        return t->numel() > 0;
+      });
+  reduced.resize(std::distance(reduced.begin(), end_it));
+  return reduced;
+}
+
+static DataType FindHighestPrecisionType(
+    const std::vector<const MetaTensor*>& inputs) {
+  if (inputs.empty()) {
+    return DataType::UNDEFINED;
+  }
+
+  DataType highest_type = inputs[0]->dtype();
+  for (size_t i = 1; i < inputs.size(); ++i) {
+    highest_type = promoteTypes(highest_type, inputs[i]->dtype());
+  }
+  return highest_type;
+}
+
+template <typename T, typename Context>
+static std::vector<DenseTensor> PromoteTensorTypes(
+    const Context& dev_ctx,
+    const std::vector<const DenseTensor*>& inputs,
+    DataType target_type) {
+  auto non_empty_inputs = ReduceMultiInput(inputs);
+
+  if (inputs.empty()) {
+    return {};
+  }
+
+  std::vector<DenseTensor> promoted_tensors;
+  promoted_tensors.reserve(non_empty_inputs.size());
+
+  // Convert each tensor to the target type
+  for (const auto* tensor : non_empty_inputs) {
+    if (tensor->dtype() == target_type) {
+      // Same type, copy directly
+      promoted_tensors.emplace_back(*tensor);
+    } else {
+      DenseTensor promoted_tensor;
+      CastKernel<T, Context>(dev_ctx, *tensor, target_type, &promoted_tensor);
+      promoted_tensors.push_back(promoted_tensor);
+    }
+  }
+
+  return promoted_tensors;
 }
 
 }  // namespace funcs

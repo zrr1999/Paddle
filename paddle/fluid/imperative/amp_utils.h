@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #pragma once
+#include <iostream>
 #include <string>
 
 #if !(defined(PADDLE_NO_PYTHON) && defined(PADDLE_ON_INFERENCE))
@@ -263,7 +264,10 @@ inline std::vector<T> AmpAutoCasts(const std::string& inputs_name,
           << " inputs(" << inputs_name << ") dst_dtype("
           << phi::DataTypeToString(dst_dtype) << ").";
   std::vector<T> inputs_casted;
+  std::cout << "dtype:" << dst_dtype << std::endl;
   for (auto& input : inputs) {
+    std::cout << "NeedCast(input, dst_dtype):" << NeedCast(input, dst_dtype)
+              << std::endl;
     if (NeedCast(input, dst_dtype)) {
       inputs_casted.emplace_back(std::move(Cast(input, dst_dtype)));
     } else {

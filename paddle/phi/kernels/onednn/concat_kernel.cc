@@ -91,18 +91,6 @@ static void EnforceLayouts(const std::vector<const DenseTensor*> inputs) {
   }
 }
 
-// From a multi-input, gather only nonempty inputs
-static const std::vector<const DenseTensor*> ReduceMultiInput(
-    const std::vector<const DenseTensor*>& inputs) {
-  std::vector<const DenseTensor*> reduced(inputs.size());
-  auto end_it = std::copy_if(
-      inputs.begin(), inputs.end(), reduced.begin(), [](const DenseTensor* t) {
-        return t->numel() > 0;
-      });
-  reduced.resize(std::distance(reduced.begin(), end_it));
-  return reduced;
-}
-
 template <typename T, typename Context>
 void ConcatKernel(const Context& dev_ctx,
                   const std::vector<const DenseTensor*>& x,
@@ -111,7 +99,7 @@ void ConcatKernel(const Context& dev_ctx,
   const auto& onednn_engine = dev_ctx.GetEngine();
   // If any of the multiple inputs of concat has an input size of 0, the
   // actual size of the multi_input will change
-  auto multi_input = ReduceMultiInput(x);
+  auto multi_input = funcs::ReduceMultiInput(x);
   EnforceLayouts(multi_input);
 
   int64_t axis = axis_.to<int64_t>();

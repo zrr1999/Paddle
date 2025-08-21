@@ -100,15 +100,8 @@ void ConcatKernel(const Context& dev_ctx,
     }
   } else {
     // TODO(chenweihang): concat functor support vector<DenseTensor*> input
-    std::vector<phi::DenseTensor> inputs;
-    inputs.reserve(x.size());
-    for (auto item : x) {
-      if (item->numel() > 0) {
-        inputs.emplace_back(*item);
-      } else {
-        continue;
-      }
-    }
+    std::vector<phi::DenseTensor> inputs =
+        funcs::PromoteTensorTypes<T, Context>(dev_ctx, x, out->dtype());
     phi::funcs::ConcatFunctor<Context, T> functor;
     functor(dev_ctx, inputs, axis, out);
   }
