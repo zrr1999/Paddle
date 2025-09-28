@@ -101,7 +101,7 @@ std::vector<paddle::DataType> LeakyReluInferDtype(paddle::DataType x_dtype) {
 PD_BUILD_OP(custom_leaky_relu)
     .Inputs({"X"})
     .Outputs({"Out"})
-    .Attrs({"alpha: float"})
+    .Attrs({"alpha: double"})
     .SetKernelFn(PD_KERNEL(LeakyReluCPUForward))
     .SetInferShapeFn(PD_INFER_SHAPE(LeakyReluInferShape))
     .SetInferDtypeFn(PD_INFER_DTYPE(LeakyReluInferDtype));
@@ -109,5 +109,5 @@ PD_BUILD_OP(custom_leaky_relu)
 PD_BUILD_GRAD_OP(custom_leaky_relu)
     .Inputs({"X", "Out", paddle::Grad("Out")})
     .Outputs({paddle::Grad("X")})
-    .Attrs({"alpha: float"})
+    .Attrs({"alpha: double"})
     .SetKernelFn(PD_KERNEL(LeakyReluCPUBackward));
