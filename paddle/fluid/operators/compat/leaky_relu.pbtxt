@@ -8,7 +8,7 @@ def {
   }
   attrs {
     name: "alpha"
-    type: FLOAT
+    type: DOUBLE
   }
 }
 extra {

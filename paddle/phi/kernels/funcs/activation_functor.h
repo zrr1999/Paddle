@@ -1811,9 +1811,9 @@ struct HardTanhGradFunctor : public BaseActivationFunctor<T> {
 };
 
 template <typename T>
-struct LeakyReluFunctor : public BaseActivationFunctor<T> {
-  float alpha;
-  typename BaseActivationFunctor<T>::AttrPair GetAttrs() {
+struct LeakyReluFunctor : public BaseActivationFunctor<T, double> {
+  double alpha;
+  typename BaseActivationFunctor<T, double>::AttrPair GetAttrs() {
     return {{"alpha", &alpha}};
   }
 
@@ -1828,9 +1828,9 @@ struct LeakyReluFunctor : public BaseActivationFunctor<T> {
 };
 
 template <typename T>
-struct LeakyReluGradFunctor : public BaseActivationFunctor<T> {
-  float alpha;
-  typename BaseActivationFunctor<T>::AttrPair GetAttrs() {
+struct LeakyReluGradFunctor : public BaseActivationFunctor<T, double> {
+  double alpha;
+  typename BaseActivationFunctor<T, double>::AttrPair GetAttrs() {
     return {{"alpha", &alpha}};
   }
   template <typename Device,
@@ -1849,9 +1849,9 @@ struct LeakyReluGradFunctor : public BaseActivationFunctor<T> {
 };
 
 template <typename T>
-struct LeakyReluGradGradFunctor : public BaseActivationFunctor<T> {
-  float alpha;
-  typename BaseActivationFunctor<T>::AttrPair GetAttrs() {
+struct LeakyReluGradGradFunctor : public BaseActivationFunctor<T, double> {
+  double alpha;
+  typename BaseActivationFunctor<T, double>::AttrPair GetAttrs() {
     return {{"alpha", &alpha}};
   }
   template <typename Device>
@@ -4654,12 +4654,12 @@ struct CudaRelu6GradFunctor : public BaseActivationFunctor<T> {
   }
 };
 template <typename T>
-struct CudaLeakyReluFunctor : public BaseActivationFunctor<T> {
+struct CudaLeakyReluFunctor : public BaseActivationFunctor<T, double> {
   using MPType = typename phi::dtype::MPTypeTrait<T>::Type;
   T zero = static_cast<T>(0.0f);
-  float alpha;
+  double alpha;
 
-  typename BaseActivationFunctor<T>::AttrPair GetAttrs() {
+  typename BaseActivationFunctor<T, double>::AttrPair GetAttrs() {
     return {{"alpha", &alpha}};
   }
 
@@ -4672,12 +4672,12 @@ struct CudaLeakyReluFunctor : public BaseActivationFunctor<T> {
 };
 
 template <typename T>
-struct CudaLeakyReluGradFunctor : public BaseActivationFunctor<T> {
+struct CudaLeakyReluGradFunctor : public BaseActivationFunctor<T, double> {
   using MPType = typename phi::dtype::MPTypeTrait<T>::Type;
   T zero = static_cast<T>(0.0f);
-  float alpha;
+  double alpha;
 
-  typename BaseActivationFunctor<T>::AttrPair GetAttrs() {
+  typename BaseActivationFunctor<T, double>::AttrPair GetAttrs() {
     return {{"alpha", &alpha}};
   }
 
