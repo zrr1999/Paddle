@@ -24,12 +24,17 @@ class DenseTensor;
 namespace phi::funcs {
 
 class PADDLE_API TensorFormatter {
+ private:
+  int float_precision_ = 6;
+
  public:
   TensorFormatter() {}
 
   std::string Format(const phi::DenseTensor& print_tensor,
                      const std::string& tensor_name = "",
                      const std::string& message = "");
+
+  void SetFloatPrecision(int precision) { float_precision_ = precision; }
 
   template <typename T>
   void FormatData(const phi::DenseTensor& print_tensor,
