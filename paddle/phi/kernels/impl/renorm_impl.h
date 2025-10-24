@@ -286,7 +286,7 @@ void RenormFunc(const phi::GPUContext& dev_ctx,
   T* dim_value_data = dev_ctx.template Alloc<T>(&dim_value);
   auto stream = dev_ctx.stream();
   int block = std::min(numel, static_cast<int64_t>(256));
-  int grid = (numel + block - 1) / block;
+  int64_t grid = (numel + block - 1) / block;
   RenormElementwisePow<T>
       <<<grid, block, 0, stream>>>(x_data, pow_value_data, numel, p);
   int block2 = std::min(dimension_each, static_cast<int64_t>(256));
@@ -324,7 +324,7 @@ void RenormGradFunc(const phi::GPUContext& dev_ctx,
   weight_derivative.Resize(common::make_ddim({dimension_each}));
   auto stream = dev_ctx.stream();
   int block = std::min(numel, static_cast<int64_t>(256));
-  int grid = (numel + block - 1) / block;
+  int64_t grid = (numel + block - 1) / block;
   T* pow_value_data = dev_ctx.template Alloc<T>(&pow_value);
   T* mul_value_data = dev_ctx.template Alloc<T>(&mul_value);
   T* dim_value_data = dev_ctx.template Alloc<T>(&dim_value);

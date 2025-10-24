@@ -47,8 +47,8 @@ void UnStackKernel(const Context &dev_ctx,
   }
   int pre = 1;
   for (int i = 0; i < axis; ++i) pre *= dy->dims()[i];
-  int total_num = dy->numel();
-  int post = total_num / (n * pre);
+  int64_t total_num = dy->numel();
+  int64_t post = total_num / (n * pre);
 
 #if defined(__NVCC__) || defined(__HIPCC__)
   thrust::device_vector<T *> device_dx_vec(dx_datas);
