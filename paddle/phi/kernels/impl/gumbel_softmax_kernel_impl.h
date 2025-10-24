@@ -52,7 +52,7 @@ void GumbelSoftmaxKernelHelper(const Context& dev_ctx,
                                DenseTensor* out) {
   const int rank = x.dims().size();
   axis = funcs::CanonicalAxis(axis, rank);
-  int axis_dim = x.dims()[axis];
+  int64_t axis_dim = x.dims()[axis];
 
   PADDLE_ENFORCE_GT(temperature,
                     0,

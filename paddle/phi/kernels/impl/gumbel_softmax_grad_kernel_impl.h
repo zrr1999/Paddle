@@ -30,7 +30,7 @@ void GumbelSoftmaxGradKernel(const Context& dev_ctx,
                              DenseTensor* dx) {
   const int rank = dx->dims().size();
   axis = funcs::CanonicalAxis(axis, rank);
-  int axis_dim = dx->dims()[axis];
+  int64_t axis_dim = dx->dims()[axis];
   // allocate memory on device.
 
   dev_ctx.template Alloc<T>(dx);
