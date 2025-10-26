@@ -64,6 +64,18 @@ void LRNKernel(const Context& dev_ctx,
   int64_t H = (data_layout != DataLayout::kNHWC ? x_dims[2] : x_dims[1]);
   int64_t W = (data_layout != DataLayout::kNHWC ? x_dims[3] : x_dims[2]);
 
+  // TODO(large-tensor): LRN GPU kernel implementation still uses int for dimensions.
+  // Need to update GPU kernel to support dimensions > INT32_MAX.
+  PADDLE_ENFORCE_LE(
+      N * C * H * W,
+      std::numeric_limits<int>::max(),
+      common::errors::InvalidArgument(
+          "The total number of elements (N*C*H*W = %ld) exceeds the maximum "
+          "value that int can represent (%d). LRN operation does not support "
+          "such large tensors yet.",
+          N * C * H * W,
+          std::numeric_limits<int>::max()));
+
   dev_ctx.template Alloc<T>(out);
 
   // MidOut save the intermediate result for backward
@@ -156,6 +168,18 @@ void LRNGradKernel(const Context& dev_ctx,
   int64_t C = (data_layout != DataLayout::kNHWC ? x_dims[1] : x_dims[3]);
   int64_t H = (data_layout != DataLayout::kNHWC ? x_dims[2] : x_dims[1]);
   int64_t W = (data_layout != DataLayout::kNHWC ? x_dims[3] : x_dims[2]);
+
+  // TODO(large-tensor): LRN GPU kernel implementation still uses int for dimensions.
+  // Need to update GPU kernel to support dimensions > INT32_MAX.
+  PADDLE_ENFORCE_LE(
+      N * C * H * W,
+      std::numeric_limits<int>::max(),
+      common::errors::InvalidArgument(
+          "The total number of elements (N*C*H*W = %ld) exceeds the maximum "
+          "value that int can represent (%d). LRN gradient operation does not "
+          "support such large tensors yet.",
+          N * C * H * W,
+          std::numeric_limits<int>::max()));
 
   LRNGradFunctor<Context, T> f;
   f(dev_ctx, x, out, mid, x_g, out_g, N, C, H, W, n, alpha, beta, data_layout);
