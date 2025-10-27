@@ -55,7 +55,7 @@ phi::DenseTensor CheckMultipleUnsqueeze(const Context& dev_ctx,
   std::vector<bool> axes(ndim, false);
 
   for (int i = 0; i < dims.size(); i++) {
-    int tmp_dim = dims[i] >= 0 ? dims[i] : ndim + dims[i];
+    int64_t tmp_dim = dims[i] >= 0 ? dims[i] : ndim + dims[i];
     axes[tmp_dim] = true;
   }
 
