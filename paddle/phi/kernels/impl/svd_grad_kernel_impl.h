@@ -86,9 +86,9 @@ struct SvdGradFunctor {
                   bool full_matrices,
                   DenseTensor* x_grad) {
     const auto& dX = *x_grad;
-    int m = dX.dims()[dX.dims().size() - 2];
-    int n = dX.dims()[dX.dims().size() - 1];
-    int k = s.dims()[s.dims().size() - 1];
+    int64_t m = dX.dims()[dX.dims().size() - 2];
+    int64_t n = dX.dims()[dX.dims().size() - 1];
+    int64_t k = s.dims()[s.dims().size() - 1];
     DenseTensor U, VH, dU, dV, dVH;
     if (full_matrices) {
       // if full_matrices is set, slice the U and VT to k columns
@@ -200,9 +200,9 @@ struct SvdGradFunctor<phi::dtype::complex<T>, Context> {
                   DenseTensor* x_grad) {
     using C = phi::dtype::complex<T>;
     const auto& dX = *x_grad;
-    int m = dX.dims()[dX.dims().size() - 2];
-    int n = dX.dims()[dX.dims().size() - 1];
-    int k = s.dims()[s.dims().size() - 1];
+    int64_t m = dX.dims()[dX.dims().size() - 2];
+    int64_t n = dX.dims()[dX.dims().size() - 1];
+    int64_t k = s.dims()[s.dims().size() - 1];
     DenseTensor S = Cast<T, Context>(dev_ctx, s, u.dtype());
     DenseTensor U, VH, dU, dV, dVH;
 
