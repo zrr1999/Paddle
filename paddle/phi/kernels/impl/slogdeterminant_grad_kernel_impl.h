@@ -88,7 +88,7 @@ void SlogDeterminantGradKernel(const Context& dev_ctx,
 
   const auto& mat_dims = x.dims();
   const int rank = mat_dims.size();
-  int n = mat_dims[rank - 1];
+  int64_t n = mat_dims[rank - 1];
   int64_t total_batch_size = rank > 2 ? x.numel() / (n * n) : 1;
 
   // Divide the batch into chunks because of cublasMatInv limitation

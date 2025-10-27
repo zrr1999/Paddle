@@ -61,7 +61,7 @@ void GRUGradKernel(const Context &dev_ctx,
 
   auto gate_dims = batch_gate.dims();
   auto hidden_dims = hidden.dims();
-  int frame_size = hidden_dims[1];
+  int64_t frame_size = hidden_dims[1];
 
   phi::funcs::DenseTensor2BatchFunctor<Context, T> to_batch;
   phi::DenseTensor batch_hidden_grad, batch_gate_grad,

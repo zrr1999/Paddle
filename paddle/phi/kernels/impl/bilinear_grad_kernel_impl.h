@@ -32,7 +32,7 @@ void BilinearGradKernel(const Context& dev_ctx,
                         DenseTensor* dbias) {
   auto batch_size = x.dims()[0];
   auto weight_dims = weight.dims();
-  int out_dim = weight_dims[0];
+  int64_t out_dim = weight_dims[0];
   auto x_dim = weight_dims[1];
   auto y_dim = weight_dims[2];
 
@@ -76,7 +76,7 @@ void BilinearGradKernel(const Context& dev_ctx,
     Eigen::DSizes<int, 2> bcast_for_y(1, x_dim);
     Eigen::DSizes<int, 2> bcast_for_weight(1, x_dim);
 
-    for (int i = 0; i < out_dim; ++i) {
+    for (int64_t i = 0; i < out_dim; ++i) {
       DenseTensor weight_i =
           weight.Slice(i, i + 1).Resize(common::make_ddim({x_dim, y_dim}));
       auto output_vec = dout_mat.chip(i, 1);

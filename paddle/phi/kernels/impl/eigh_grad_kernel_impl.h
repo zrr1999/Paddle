@@ -40,7 +40,7 @@ void EighGradKernel(const Context& dev_ctx,
     return;
   }
   auto& dims = out_v.dims();
-  const int m = dims[dims.size() - 1];
+  const int64_t m = dims[dims.size() - 1];
   DenseTensor tV =
       phi::TransposeLast2Dim<T>(dev_ctx, phi::Conj<T>(dev_ctx, out_v));
   DenseTensor W =
