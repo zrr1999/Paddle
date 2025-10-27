@@ -84,7 +84,7 @@ void LookupTableGradCUDAKernel(
 
   int N = d_table_t->dims()[0];
   int D = d_table_t->dims()[1];
-  int K = ids_t->numel();
+  int64_t K = ids_t->numel();
   const int64_t *ids = ids_t->data<int64_t>();
   const T *d_output = d_output_t->data<T>();
   T *d_table = dev_ctx.template Alloc<T>(d_table_t);

@@ -257,8 +257,8 @@ void AdamwDenseParamSparseGradKernel(
 
   if (beta1_pow.place() == CPUPlace() && beta2_pow.place() == CPUPlace()) {
     int threads = 512;
-    int ndim = param.numel();
-    int blocks = (ndim + threads - 1) / threads;
+    int64_t ndim = param.numel();
+    int64_t blocks = (ndim + threads - 1) / threads;
 
     SparseAdamWCUDAKernelREG<T, MPDType>
         <<<blocks, threads, 0, dev_ctx.stream()>>>(
