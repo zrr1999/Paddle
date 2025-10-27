@@ -47,10 +47,10 @@ void StackGradKernel(const Context& dev_ctx,
     return;
   }
 
-  int pre = 1;
-  for (int i = 0; i < axis; ++i) pre *= static_cast<int64_t>(out.dims()[i]);
+  int64_t pre = 1;
+  for (int64_t i = 0; i < axis; ++i) pre *= out.dims()[i];
   int64_t total_num = static_cast<int64_t>(out.numel());
-  int post = total_num / (n * pre);
+  int64_t post = total_num / (n * pre);
   auto dx_data_arr = dx_datas.data();
   phi::funcs::StackGradFunctorForRange(
       dev_ctx, dx_data_arr, dy_data, total_num, n, post);

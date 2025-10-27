@@ -205,10 +205,10 @@ void YoloLossKernel(const Context& dev_ctx,
   const int an_num = static_cast<int>(anchors.size() / 2);
   const int mask_num = static_cast<int>(anchor_mask.size());
   const int64_t b = static_cast<int64_t>(gt_box.dims()[1]);
-  int input_size = downsample_ratio * h;
+  int64_t input_size = downsample_ratio * h;
 
-  const int stride = h * w;
-  const int an_stride = (class_num + 5) * stride;
+  const int64_t stride = h * w;
+  const int64_t an_stride = (class_num + 5) * stride;
 
   T label_pos = 1.0;
   T label_neg = 0.0;

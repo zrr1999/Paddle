@@ -39,13 +39,13 @@ void Unpool(const Context& dev_ctx,
   const int64_t output_channels = static_cast<int64_t>(out->dims()[1]);
   const int64_t output_height = static_cast<int64_t>(out->dims()[2]);
   const int64_t output_width = static_cast<int64_t>(out->dims()[3]);
-  int input_feasize = input_height * input_width;
-  int output_feasize = output_height * output_width;
+  int64_t input_feasize = input_height * input_width;
+  int64_t output_feasize = output_height * output_width;
   const T* input_data = x.data<T>();
   const IndT* indices_data = indices.data<IndT>();
-  for (int b = 0; b < batch_size; ++b) {
-    for (int c = 0; c < output_channels; ++c) {
-      for (int i = 0; i < input_feasize; ++i) {
+  for (int64_t b = 0; b < batch_size; ++b) {
+    for (int64_t c = 0; c < output_channels; ++c) {
+      for (int64_t i = 0; i < input_feasize; ++i) {
         IndT index = indices_data[i];
         PADDLE_ENFORCE_LT(
             index,
@@ -107,13 +107,13 @@ void Unpool3d(const Context& dev_ctx,
   const int64_t output_depth = static_cast<int64_t>(out->dims()[2]);
   const int64_t output_height = static_cast<int64_t>(out->dims()[3]);
   const int64_t output_width = static_cast<int64_t>(out->dims()[4]);
-  int input_feasize = input_depth * input_height * input_width;
-  int output_feasize = output_depth * output_height * output_width;
+  int64_t input_feasize = input_depth * input_height * input_width;
+  int64_t output_feasize = output_depth * output_height * output_width;
   const T* input_data = x.data<T>();
   const IndT* indices_data = indices.data<IndT>();
-  for (int b = 0; b < batch_size; ++b) {
-    for (int c = 0; c < output_channels; ++c) {
-      for (int i = 0; i < input_feasize; ++i) {
+  for (int64_t b = 0; b < batch_size; ++b) {
+    for (int64_t c = 0; c < output_channels; ++c) {
+      for (int64_t i = 0; i < input_feasize; ++i) {
         IndT index = indices_data[i];
         PADDLE_ENFORCE_LT(
             index,
