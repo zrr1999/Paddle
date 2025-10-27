@@ -83,9 +83,9 @@ void LstsqKernel(const Context& dev_ctx,
   // lapack is a column-major storage, transpose make the input to
   // have a continuous memory layout
   int info = 0;
-  int m = static_cast<int>(x_dims[dim_size - 2]);
-  int n = static_cast<int>(x_dims[dim_size - 1]);
-  int nrhs = static_cast<int>(y_dims[dim_size - 1]);
+  int64_t m = static_cast<int64_t>(x_dims[dim_size - 2]);
+  int64_t n = static_cast<int64_t>(x_dims[dim_size - 1]);
+  int64_t nrhs = static_cast<int64_t>(y_dims[dim_size - 1]);
   int lda = std::max<int>(m, 1);
   int ldb = std::max<int>(1, std::max(m, n));
 

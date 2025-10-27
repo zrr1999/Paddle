@@ -115,13 +115,13 @@ void SvdKernel(const Context& dev_ctx,
   DenseTensor trans_x =
       ::phi::TransposeLast2Dim<T>(dev_ctx, Conj<T, Context>(dev_ctx, X));
   auto x_dims = X.dims();
-  int rows = static_cast<int>(x_dims[x_dims.size() - 2]);
-  int cols = static_cast<int>(x_dims[x_dims.size() - 1]);
+  int64_t rows = static_cast<int64_t>(x_dims[x_dims.size() - 2]);
+  int64_t cols = static_cast<int64_t>(x_dims[x_dims.size() - 1]);
   // int k = std::min(rows, cols);
   // int col_u = full ? rows : k;
   // int col_v = full ? cols : k;
   auto* x_data = trans_x.data<T>();
-  int batches = static_cast<int>(numel / (rows * cols));
+  int64_t batches = static_cast<int64_t>(numel / (rows * cols));
   auto* U_out = dev_ctx.template Alloc<T>(U);
   auto* VH_out = dev_ctx.template Alloc<T>(VH);
   auto* S_out = dev_ctx.template Alloc<phi::dtype::Real<T>>(S);

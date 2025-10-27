@@ -55,8 +55,8 @@ void LUKernel(const Context& dev_ctx,
   auto outdims = out->dims();
   auto outrank = outdims.size();
 
-  int m = static_cast<int>(outdims[outrank - 1]);
-  int n = static_cast<int>(outdims[outrank - 2]);
+  int64_t m = static_cast<int64_t>(outdims[outrank - 1]);
+  int64_t n = static_cast<int64_t>(outdims[outrank - 2]);
   int lda = std::max(1, m);
 
   auto ipiv_dims = common::slice_ddim(outdims, 0, outrank - 1);

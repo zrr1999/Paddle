@@ -140,12 +140,12 @@ void YoloLossGradKernel(const Context& dev_ctx,
   auto input_grad = x_grad;
   auto* objness_mask = &objectness_mask;
 
-  const int n = static_cast<int>(input_grad->dims()[0]);
-  const int c = static_cast<int>(input_grad->dims()[1]);
-  const int h = static_cast<int>(input_grad->dims()[2]);
-  const int w = static_cast<int>(input_grad->dims()[3]);
+  const int64_t n = static_cast<int64_t>(input_grad->dims()[0]);
+  const int64_t c = static_cast<int64_t>(input_grad->dims()[1]);
+  const int64_t h = static_cast<int64_t>(input_grad->dims()[2]);
+  const int64_t w = static_cast<int64_t>(input_grad->dims()[3]);
   const int mask_num = static_cast<int>(anchor_mask.size());
-  const int b = static_cast<int>(gt_match_mask.dims()[1]);
+  const int64_t b = static_cast<int64_t>(gt_match_mask.dims()[1]);
   int input_size = downsample_ratio * h;
 
   const int stride = h * w;
