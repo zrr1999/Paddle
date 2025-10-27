@@ -38,7 +38,7 @@ void FoldGradKernel(const Context& dev_ctx,
   if (!x_grad) return;
 
   const auto& x_dims = x_grad->dims();
-  const int batch_size = static_cast<int>(x_dims[0]);
+  const int64_t batch_size = x_dims[0];
 
   int output_height = (output_sizes[0] + 2 * paddings[0] -
                        (dilations[0] * (kernel_sizes[0] - 1) + 1)) /
@@ -49,7 +49,7 @@ void FoldGradKernel(const Context& dev_ctx,
                          strides[1] +
                      1;
 
-  int n_input_plane = x_dims[1];
+  int64_t n_input_plane = x_dims[1];
   int n_output_plane = n_input_plane / (kernel_sizes[0] * kernel_sizes[1]);
 
   DDim out_shape =

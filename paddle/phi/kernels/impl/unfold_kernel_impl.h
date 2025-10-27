@@ -31,7 +31,7 @@ void UnfoldKernel(const Context& dev_ctx,
                   const std::vector<int>& paddings,
                   const std::vector<int>& dilations,
                   DenseTensor* out) {
-  const int batch_size = static_cast<int>(x.dims()[0]);
+  const int64_t batch_size = x.dims()[0];
   dev_ctx.template Alloc<T>(out);
   if (out->numel() == 0) {
     return;
