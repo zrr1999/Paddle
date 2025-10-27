@@ -1111,7 +1111,7 @@ void LaunchSoftmaxForwardCudnnKernel(const GPUContext& dev_ctx,
 
   std::vector<int> tensor_dims = GetSoftmaxTensorDims(x.dims(), axis);
   int64_t remaining = tensor_dims[0];
-  int dim = tensor_dims[1];
+  int64_t dim = tensor_dims[1];
   int64_t batch_size = std::numeric_limits<int32_t>::max() / dim;
   int64_t offset = batch_size * dim;
   while (remaining > 0) {
@@ -1189,7 +1189,7 @@ void LaunchSoftmaxBackwardCudnnKernel(const GPUContext& dev_ctx,
 
   std::vector<int> tensor_dims = GetSoftmaxTensorDims(out.dims(), axis);
   int64_t remaining = tensor_dims[0];
-  int dim = tensor_dims[1];
+  int64_t dim = tensor_dims[1];
   int64_t batch_size = std::numeric_limits<int32_t>::max() / dim;
   int64_t offset = batch_size * dim;
   while (remaining > 0) {
