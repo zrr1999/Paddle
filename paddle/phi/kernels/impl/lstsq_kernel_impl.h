@@ -66,8 +66,8 @@ inline void GetResidualsTensor(const DeviceContext& dev_ctx,
                                DenseTensor* rank) {
   auto x_dims = x.dims();
   int dim_size = x_dims.size();
-  int m = x_dims[dim_size - 2];
-  int n = x_dims[dim_size - 1];
+  int64_t m = x_dims[dim_size - 2];
+  int64_t n = x_dims[dim_size - 1];
 
   if (m > n && driver != "gelsy") {
     bool compute_residuals = true;
