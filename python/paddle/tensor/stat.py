@@ -225,6 +225,11 @@ def var(
             >>> print(out2.numpy())
             [1.         4.3333335]
     """
+    if x.is_cuda:
+        return _C_ops.var(
+            x, axis if axis is not None else [], keepdim, unbiased, correction
+        )
+
     if unbiased is not None and correction != 1:
         raise ValueError("Only one of unbiased and correction may be given")
 
@@ -341,10 +346,15 @@ def std(
             [1.       2.081666]
 
     """
-    if not in_dynamic_or_pir_mode():
-        check_variable_and_dtype(
-            x, 'x', ['float16', 'float32', 'float64'], 'std'
-        )
+    if in_dynamic_or_pir_mode():
+        if axis is None:
+            axis = []
+        elif isinstance(axis, int):
+            axis = [axis]
+        else:
+            axis = list(axis)
+        return _C_ops.std(x, axis, keepdim, unbiased)
+
     out = var(**locals())
     return paddle.sqrt(out)
 

@@ -701,6 +701,21 @@ PADDLE_API void StrictReduceIntArrayAxisInferMeta(
     MetaTensor* out,
     MetaConfig config = MetaConfig());
 
+PADDLE_API void VarInferMeta(const MetaTensor& x,
+                             const IntArray& axis,
+                             bool keepdim,
+                             bool unbiased,
+                             double correction,
+                             MetaTensor* out,
+                             MetaConfig config = MetaConfig());
+
+PADDLE_API void StdInferMeta(const MetaTensor& x,
+                             const IntArray& axis,
+                             bool keepdim,
+                             bool unbiased,
+                             MetaTensor* out,
+                             MetaConfig config = MetaConfig());
+
 PADDLE_API void ReduceScatterInferMeta(const MetaTensor& x,
                                        int nranks,
                                        MetaTensor* out);
