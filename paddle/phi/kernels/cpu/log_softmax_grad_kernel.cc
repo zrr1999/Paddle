@@ -46,7 +46,7 @@ struct LogSoftmaxGradFunctor {
     auto dy = EigenMatrixTemplate<T>::From(*dY, dim_2d);
     auto dx = EigenMatrixTemplate<T>::From(*dX, dim_2d);
 
-    const int64_t axis_dim = static_cast<int64_t>(Y->dims()[axis]);
+    const int64_t axis_dim = Y->dims()[axis];
     const int batch_size = y.dimension(kBatchDim);
     const int num_classes = y.dimension(kClassDim);
     const int num_remain = num_classes / axis_dim;

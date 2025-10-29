@@ -35,8 +35,8 @@ void GraphReindexKernel(const Context& dev_ctx,
   const T* x_data = x.data<T>();
   const T* neighbors_data = neighbors.data<T>();
   const int* count_data = count.data<int>();
-  const int64_t bs = static_cast<int64_t>(x.dims()[0]);
-  const int64_t num_edges = static_cast<int64_t>(neighbors.dims()[0]);
+  const int64_t bs = x.dims()[0];
+  const int64_t num_edges = neighbors.dims()[0];
 
   std::unordered_map<T, T> node_map;
   std::vector<T> unique_nodes;

@@ -33,7 +33,7 @@ void EigKernel(const Context& dev_ctx,
     dev_ctx.template Alloc<phi::dtype::Complex<T>>(out_v);
 
     int batch_count = BatchCount(x);
-    int64_t order = static_cast<int64_t>(x.dims()[x.dims().size() - 1]);
+    int64_t order = x.dims()[x.dims().size() - 1];
 
     PADDLE_ENFORCE_LT(0,
                       order,

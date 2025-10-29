@@ -26,7 +26,7 @@ void StackGradKernel(const Context& dev_ctx,
                      int axis,
                      std::vector<DenseTensor*> x_grad) {
   if (axis < 0) axis += out.dims().size();
-  int64_t n = static_cast<int64_t>(out.dims()[axis]);
+  int64_t n = out.dims()[axis];
   std::vector<T*> dx_datas(n);  // NOLINT
 
   for (int i = 0; i < n; i++) {

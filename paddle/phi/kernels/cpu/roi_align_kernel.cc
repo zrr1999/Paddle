@@ -192,7 +192,7 @@ void RoiAlignKernel(const Context& dev_ctx,
   int64_t channels = static_cast<int64_t>(in_dims[1]);
   int64_t height = static_cast<int64_t>(in_dims[2]);
   int64_t width = static_cast<int64_t>(in_dims[3]);
-  int64_t rois_num = static_cast<int64_t>(boxes.dims()[0]);
+  int64_t rois_num = boxes.dims()[0];
 
   if (x.numel() == 0 || boxes.numel() == 0) {
     phi::Full<T, Context>(

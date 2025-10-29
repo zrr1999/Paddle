@@ -262,9 +262,9 @@ void SliceOneClass(const Context& dev_ctx,
   T* item_data = dev_ctx.template Alloc<T>(one_class_item);
   const T* items_data = items.data<T>();
   const int64_t num_item = items.dims()[0];
-  const int64_t class_num = static_cast<int64_t>(items.dims()[1]);
+  const int64_t class_num = items.dims()[1];
   if (items.dims().size() == 3) {
-    int64_t item_size = static_cast<int64_t>(items.dims()[2]);
+    int64_t item_size = items.dims()[2];
     for (int i = 0; i < num_item; ++i) {
       std::memcpy(item_data + i * item_size,
                   items_data + i * class_num * item_size + class_id * item_size,

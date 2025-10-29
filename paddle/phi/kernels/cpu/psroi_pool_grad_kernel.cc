@@ -37,7 +37,7 @@ void PsroiPoolGradKernel(const Context& dev_ctx,
     int64_t input_channels = static_cast<int64_t>(in_dims[1]);
     int64_t height = static_cast<int64_t>(in_dims[2]);
     int64_t width = static_cast<int64_t>(in_dims[3]);
-    int64_t rois_num_t = static_cast<int64_t>(rois.dims()[0]);
+    int64_t rois_num_t = rois.dims()[0];
 
     // set roi batch id
     DenseTensor rois_batch_id_list;

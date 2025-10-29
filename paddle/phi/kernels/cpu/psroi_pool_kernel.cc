@@ -35,7 +35,7 @@ void PsroiPoolKernel(const Context& dev_ctx,
   int64_t input_channels = static_cast<int64_t>(in_dims[1]);
   int64_t height = static_cast<int64_t>(in_dims[2]);
   int64_t width = static_cast<int64_t>(in_dims[3]);
-  int64_t rois_num_t = static_cast<int64_t>(rois.dims()[0]);
+  int64_t rois_num_t = rois.dims()[0];
 
   PADDLE_ENFORCE_EQ(input_channels,
                     output_channels * pooled_height * pooled_width,

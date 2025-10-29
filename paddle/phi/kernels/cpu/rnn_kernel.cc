@@ -332,7 +332,7 @@ struct Layer {
         is_reverse = true;
       }
     }
-    const int64_t time_step = static_cast<int64_t>(input->dims()[0]);
+    const int64_t time_step = input->dims()[0];
     this->preprocess(dev_ctx,
                      *input,
                      vec[0 + offset * 4],
@@ -532,7 +532,7 @@ struct Layer {
         is_reverse = true;
       }
     }
-    const int64_t time_step = static_cast<int64_t>(input->dims()[0]);
+    const int64_t time_step = input->dims()[0];
     this->preprocess(dev_ctx,
                      *input,
                      vec[0 + offset * 4],

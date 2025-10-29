@@ -1011,8 +1011,8 @@ void RnnGradFunc(const CPUContext& dev_ctx,
   }
 
   // get the input_size, batch_size, time_step
-  const int64_t time_step = static_cast<int64_t>(x.dims()[0]);
-  const int64_t batch_size = static_cast<int64_t>(x.dims()[1]);
+  const int64_t time_step = x.dims()[0];
+  const int64_t batch_size = x.dims()[1];
   const int direction_num = is_bidirec ? 2 : 1;
 
   // allocate the memory and initization the x_grad

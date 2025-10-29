@@ -86,7 +86,7 @@ void RoiAlignGradKernel(const Context& dev_ctx,
   int64_t channels = in_dims[1];
   int64_t height = in_dims[2];
   int64_t width = in_dims[3];
-  int64_t rois_num = static_cast<int64_t>(boxes.dims()[0]);
+  int64_t rois_num = boxes.dims()[0];
 
   if (!dx) {
     return;

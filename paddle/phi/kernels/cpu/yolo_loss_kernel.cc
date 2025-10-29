@@ -199,12 +199,12 @@ void YoloLossKernel(const Context& dev_ctx,
   float scale = scale_x_y;
   float bias = -0.5f * (scale - 1.f);
 
-  const int64_t n = static_cast<int64_t>(input->dims()[0]);
-  const int64_t h = static_cast<int64_t>(input->dims()[2]);
-  const int64_t w = static_cast<int64_t>(input->dims()[3]);
+  const int64_t n = input->dims()[0];
+  const int64_t h = input->dims()[2];
+  const int64_t w = input->dims()[3];
   const int an_num = static_cast<int>(anchors.size() / 2);
   const int mask_num = static_cast<int>(anchor_mask.size());
-  const int64_t b = static_cast<int64_t>(gt_box.dims()[1]);
+  const int64_t b = gt_box.dims()[1];
   int64_t input_size = downsample_ratio * h;
 
   const int64_t stride = h * w;
