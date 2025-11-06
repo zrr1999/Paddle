@@ -86,7 +86,7 @@ void BatchNormKernel(const Context& dev_ctx,
           "But received: the size of input X's dimensions is [%d]",
           x_dims.size()));
   const int64_t N = static_cast<int64_t>(x_dims[0]);
-  const int64_t C = static_cast<int>(
+  const int64_t C = static_cast<int64_t>(
       data_layout == DataLayout::kNCHW ? x_dims[1] : x_dims[x_dims.size() - 1]);
   const int64_t sample_size = static_cast<int64_t>(x.numel() / N / C);
 

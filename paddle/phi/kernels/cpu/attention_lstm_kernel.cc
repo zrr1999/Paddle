@@ -94,7 +94,7 @@ void AttentionLSTMKernel(
   auto w_dims = lstm_w->dims();                         // (D+M) x 4D
   const int64_t total_T = static_cast<int64_t>(x_dims[0]);
   const int64_t M = static_cast<int64_t>(x_dims[1]);      // x frame size
-  const int64_t D = static_cast<int>(w_dims[1] / 4);  // gate frame size
+  const int64_t D = static_cast<int64_t>(w_dims[1] / 4);  // gate frame size
   const int D2 = static_cast<int>(D * 2);
   const int D3 = static_cast<int>(D * 3);
   const int64_t D4 = static_cast<int64_t>(w_dims[1]);

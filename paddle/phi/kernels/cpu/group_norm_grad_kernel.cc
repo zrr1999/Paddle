@@ -71,7 +71,7 @@ void GroupNormGradKernel(const Context& dev_ctx,
   const auto scale_ptr = scale.get_ptr();
   const auto bias_ptr = bias.get_ptr();
   const auto& x_dims = y.dims();
-  const int64_t C = static_cast<int>(
+  const int64_t C = static_cast<int64_t>(
       data_layout == DataLayout::kNCHW ? x_dims[1] : x_dims[x_dims.size() - 1]);
   const int group_size = C / groups;
 

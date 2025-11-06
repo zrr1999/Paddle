@@ -72,7 +72,7 @@ void CPUPyramidHashOPGradKernel(const Context& dev_ctx,
   auto* buff = &x_temp_out;
   auto* bottom_data = buff->data<T>();
 
-  int64_t _slot_len = static_cast<int>(bottom->dims()[0]);
+  int64_t _slot_len = bottom->dims()[0];
   if (static_cast<size_t>(_slot_len) == bottom->lod()[0].size() - 1 &&
       std::count(bottom_data, bottom_data + _slot_len, -1) == _slot_len) {
     return;
