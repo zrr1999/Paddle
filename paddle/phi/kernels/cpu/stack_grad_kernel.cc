@@ -15,6 +15,7 @@ limitations under the License. */
 #include "paddle/phi/kernels/stack_grad_kernel.h"
 
 #include "paddle/phi/backends/cpu/cpu_context.h"
+#include "paddle/phi/core/enforce.h"
 #include "paddle/phi/core/kernel_registry.h"
 #include "paddle/phi/kernels/funcs/stack_functor.h"
 
@@ -26,10 +27,12 @@ void StackGradKernel(const Context& dev_ctx,
                      int axis,
                      std::vector<DenseTensor*> x_grad) {
   if (axis < 0) axis += out.dims().size();
-  int n = static_cast<int>(out.dims()[axis]);
-  std::vector<T*> dx_datas(n);  // NOLINT
+  int64_t n = out.dims()[axis];
+  PADDLE_ENFORCE_LE_INT_MAX(n, "n");
+  int n_int = static_cast<int>(n);
+  std::vector<T*> dx_datas(n_int);  // NOLINT
 
-  for (int i = 0; i < n; i++) {
+  for (int i = 0; i < n_int; i++) {
     if (x_grad[i] == nullptr) {
       dx_datas[i] = nullptr;
     } else {
@@ -40,20 +43,28 @@ void StackGradKernel(const Context& dev_ctx,
 
   // zero sized tensor case
   if (out.numel() == 0) {
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n_int; i++) {
       auto x_grad_dim = x_grad[i]->dims();
       x_grad[i]->Resize(x_grad_dim);
     }
     return;
   }
 
-  int pre = 1;
-  for (int i = 0; i < axis; ++i) pre *= static_cast<int>(out.dims()[i]);
-  int total_num = static_cast<int>(out.numel());
-  int post = total_num / (n * pre);
+  int64_t pre = 1;
+  for (int i = 0; i < axis; ++i) pre *= out.dims()[i];
+  int64_t total_num = out.numel();
+  PADDLE_ENFORCE_LE_INT_MAX(total_num, "total_num");
+  int64_t post = total_num / (n * pre);
+  PADDLE_ENFORCE_LE_INT_MAX(post, "post");
+  int post_int = static_cast<int>(post);
   auto dx_data_arr = dx_datas.data();
   funcs::StackGradFunctorForRange(
-      dev_ctx, dx_data_arr, dy_data, total_num, n, post);
+      dev_ctx,
+      dx_data_arr,
+      dy_data,
+      static_cast<int>(total_num),
+      n_int,
+      post_int);
 }
 
 }  // namespace phi

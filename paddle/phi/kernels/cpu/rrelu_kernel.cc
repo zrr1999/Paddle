@@ -32,8 +32,8 @@ void RReluKernel(const Context& dev_ctx,
   T* o_ptr = dev_ctx.template Alloc<T>(out);
   T* n_ptr = dev_ctx.template Alloc<T>(noise);
   T zero = static_cast<T>(0);
-  int numel = static_cast<int>(x.numel());
-  int i = 0;
+  int64_t numel = x.numel();
+  int64_t i = 0;
 
   if (is_test) {
     T mid_val = static_cast<T>((lower + upper) / 2.0);
