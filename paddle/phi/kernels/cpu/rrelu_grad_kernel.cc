@@ -31,11 +31,12 @@ void RReluGradKernel(const Context& dev_ctx,
   const T* out_grad_ptr = out_grad.data<T>();
   int64_t numel = x.numel();
   PADDLE_ENFORCE_LE_INT_MAX(numel, "numel");
+  int numel_int = static_cast<int>(numel);
   if (!x_grad) return;
 
-  int64_t i = 0;
+  int i = 0;
   T* x_grad_ptr = dev_ctx.template Alloc<T>(x_grad);
-  for (i = 0; i < numel; i++) {
+  for (i = 0; i < numel_int; i++) {
     x_grad_ptr[i] = x_ptr[i] > 0 ? out_grad_ptr[i] : n_ptr[i] * out_grad_ptr[i];
   }
 }

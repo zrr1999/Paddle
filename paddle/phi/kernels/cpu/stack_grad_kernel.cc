@@ -54,6 +54,7 @@ void StackGradKernel(const Context& dev_ctx,
   for (int i = 0; i < axis; ++i) pre *= out.dims()[i];
   int64_t total_num = out.numel();
   PADDLE_ENFORCE_LE_INT_MAX(total_num, "total_num");
+  int total_num_int = static_cast<int>(total_num);
   int64_t post = total_num / (n * pre);
   PADDLE_ENFORCE_LE_INT_MAX(post, "post");
   int post_int = static_cast<int>(post);
@@ -62,7 +63,7 @@ void StackGradKernel(const Context& dev_ctx,
       dev_ctx,
       dx_data_arr,
       dy_data,
-      static_cast<int>(total_num),
+      total_num_int,
       n_int,
       post_int);
 }

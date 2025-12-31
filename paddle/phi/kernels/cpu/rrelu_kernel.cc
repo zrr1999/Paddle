@@ -35,11 +35,12 @@ void RReluKernel(const Context& dev_ctx,
   T zero = static_cast<T>(0);
   int64_t numel = x.numel();
   PADDLE_ENFORCE_LE_INT_MAX(numel, "numel");
-  int64_t i = 0;
+  int numel_int = static_cast<int>(numel);
+  int i = 0;
 
   if (is_test) {
     T mid_val = static_cast<T>((lower + upper) / 2.0);
-    for (i = 0; i < numel; i++) {
+    for (i = 0; i < numel_int; i++) {
       if (x_ptr[i] < zero) {
         o_ptr[i] = mid_val * x_ptr[i];
         n_ptr[i] = mid_val;
@@ -56,7 +57,7 @@ void RReluKernel(const Context& dev_ctx,
 
   std::uniform_real_distribution<float> dist(lower, upper);
 
-  for (i = 0; i < numel; i++) {
+  for (i = 0; i < numel_int; i++) {
     if (x_ptr[i] < zero) {
       T scale = static_cast<T>(dist(*engine));
       o_ptr[i] = scale * x_ptr[i];
