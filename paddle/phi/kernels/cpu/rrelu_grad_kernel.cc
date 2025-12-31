@@ -15,6 +15,7 @@
 #include "paddle/phi/kernels/rrelu_grad_kernel.h"
 
 #include "paddle/phi/backends/cpu/cpu_context.h"
+#include "paddle/phi/core/enforce.h"
 #include "paddle/phi/core/kernel_registry.h"
 
 namespace phi {
@@ -29,6 +30,7 @@ void RReluGradKernel(const Context& dev_ctx,
   const T* x_ptr = x.data<T>();
   const T* out_grad_ptr = out_grad.data<T>();
   int64_t numel = x.numel();
+  PADDLE_ENFORCE_LE_INT_MAX(numel, "numel");
   if (!x_grad) return;
 
   int64_t i = 0;

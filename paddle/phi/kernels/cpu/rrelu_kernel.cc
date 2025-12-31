@@ -15,6 +15,7 @@
 #include "paddle/phi/kernels/rrelu_kernel.h"
 
 #include "paddle/phi/backends/cpu/cpu_context.h"
+#include "paddle/phi/core/enforce.h"
 #include "paddle/phi/core/generator.h"
 #include "paddle/phi/core/kernel_registry.h"
 
@@ -33,6 +34,7 @@ void RReluKernel(const Context& dev_ctx,
   T* n_ptr = dev_ctx.template Alloc<T>(noise);
   T zero = static_cast<T>(0);
   int64_t numel = x.numel();
+  PADDLE_ENFORCE_LE_INT_MAX(numel, "numel");
   int64_t i = 0;
 
   if (is_test) {
