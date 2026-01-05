@@ -15,6 +15,7 @@
 #include "paddle/phi/kernels/rrelu_kernel.h"
 
 #include "paddle/phi/backends/cpu/cpu_context.h"
+#include "paddle/phi/core/enforce.h"
 #include "paddle/phi/core/generator.h"
 #include "paddle/phi/core/kernel_registry.h"
 
@@ -32,12 +33,14 @@ void RReluKernel(const Context& dev_ctx,
   T* o_ptr = dev_ctx.template Alloc<T>(out);
   T* n_ptr = dev_ctx.template Alloc<T>(noise);
   T zero = static_cast<T>(0);
-  int numel = static_cast<int>(x.numel());
+  int64_t numel = x.numel();
+  PADDLE_ENFORCE_LE_INT_MAX(numel, "numel");
+  int numel_int = static_cast<int>(numel);
   int i = 0;
 
   if (is_test) {
     T mid_val = static_cast<T>((lower + upper) / 2.0);
-    for (i = 0; i < numel; i++) {
+    for (i = 0; i < numel_int; i++) {
       if (x_ptr[i] < zero) {
         o_ptr[i] = mid_val * x_ptr[i];
         n_ptr[i] = mid_val;
@@ -54,7 +57,7 @@ void RReluKernel(const Context& dev_ctx,
 
   std::uniform_real_distribution<float> dist(lower, upper);
 
-  for (i = 0; i < numel; i++) {
+  for (i = 0; i < numel_int; i++) {
     if (x_ptr[i] < zero) {
       T scale = static_cast<T>(dist(*engine));
       o_ptr[i] = scale * x_ptr[i];

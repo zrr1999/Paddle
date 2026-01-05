@@ -15,6 +15,7 @@
 #include "paddle/phi/kernels/rrelu_grad_kernel.h"
 
 #include "paddle/phi/backends/cpu/cpu_context.h"
+#include "paddle/phi/core/enforce.h"
 #include "paddle/phi/core/kernel_registry.h"
 
 namespace phi {
@@ -28,12 +29,14 @@ void RReluGradKernel(const Context& dev_ctx,
   const T* n_ptr = noise.data<T>();
   const T* x_ptr = x.data<T>();
   const T* out_grad_ptr = out_grad.data<T>();
-  int numel = static_cast<int>(x.numel());
+  int64_t numel = x.numel();
+  PADDLE_ENFORCE_LE_INT_MAX(numel, "numel");
+  int numel_int = static_cast<int>(numel);
   if (!x_grad) return;
 
   int i = 0;
   T* x_grad_ptr = dev_ctx.template Alloc<T>(x_grad);
-  for (i = 0; i < numel; i++) {
+  for (i = 0; i < numel_int; i++) {
     x_grad_ptr[i] = x_ptr[i] > 0 ? out_grad_ptr[i] : n_ptr[i] * out_grad_ptr[i];
   }
 }
