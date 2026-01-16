@@ -474,11 +474,18 @@ void LayerNormDirectCUDAFunctor<T, U>::operator()(
   auto matrix_dim = common::flatten_to_2d(x_dims, begin_norm_axis);
   int64_t batch_size = static_cast<int64_t>(matrix_dim[0]);
   int64_t feature_size = static_cast<int64_t>(matrix_dim[1]);
+  auto grid_dim = funcs::GetDesiredGridDim(batch_size);
   switch (funcs::GetDesiredBlockDim(feature_size)) {
-    FIXED_BLOCK_DIM_CASE(
-        funcs::LayerNormForward<T, U, kBlockDim>
-        <<<batch_size, kBlockDim, 0, stream>>>(
-            input, scale, bias, output, mean, variance, eps, feature_size));
+    FIXED_BLOCK_DIM_CASE(funcs::LayerNormForward<T, U, kBlockDim>
+                         <<<grid_dim, kBlockDim, 0, stream>>>(input,
+                                                              scale,
+                                                              bias,
+                                                              output,
+                                                              mean,
+                                                              variance,
+                                                              eps,
+                                                              batch_size,
+                                                              feature_size));
     default:
       PADDLE_THROW(common::errors::InvalidArgument(
           "Product from begin_norm_axis to end in layer_norm must be larger "
@@ -519,7 +526,8 @@ static inline LayerNormKernelVariant LayerNormKernelDispatch(
 #endif
   if ((hidden_size >= 768 && hidden_size <= 2048 && hidden_size % 256 == 0 ||
        hidden_size == 4096) &&
-      scale != nullptr && bias != nullptr) {
+      x_numel <= std::numeric_limits<int>::max() && scale != nullptr &&
+      bias != nullptr) {
     return LayerNormKernelVariant::FAST_LN_V1;
   }
 
@@ -584,10 +592,11 @@ void LayerNormKernel(const Context& dev_ctx,
 
 #define PADDLE_LAUNCH_LAYERNORM_FWD(ScaleBiasT, IsScaleBiasSameDTypeWithX)    \
   do {                                                                        \
+    auto grid_dim = funcs::GetDesiredGridDim(batch_size);                     \
     switch (funcs::GetDesiredBlockDim(feature_size)) {                        \
       FIXED_BLOCK_DIM_CASE(                                                   \
           funcs::LayerNormForward<T, U, kBlockDim, IsScaleBiasSameDTypeWithX> \
-          <<<batch_size, kBlockDim, 0, stream>>>(                             \
+          <<<grid_dim, kBlockDim, 0, stream>>>(                               \
               x_data,                                                         \
               static_cast<const ScaleBiasT*>(void_scale_data),                \
               static_cast<const ScaleBiasT*>(void_bias_data),                 \
@@ -595,6 +604,7 @@ void LayerNormKernel(const Context& dev_ctx,
               mean_data,                                                      \
               var_data,                                                       \
               epsilon,                                                        \
+              batch_size,                                                     \
               feature_size));                                                 \
       default:                                                                \
         PADDLE_THROW(common::errors::InvalidArgument(                         \

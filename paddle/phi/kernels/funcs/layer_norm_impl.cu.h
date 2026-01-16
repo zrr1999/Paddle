@@ -21,6 +21,7 @@ limitations under the License. */
 #include "paddle/phi/backends/gpu/gpu_context.h"
 #include "paddle/phi/backends/gpu/gpu_device_function.h"
 #include "paddle/phi/backends/gpu/gpu_dnn.h"
+#include "paddle/phi/backends/gpu/gpu_helper.h"
 #include "paddle/phi/common/memory_utils.h"
 #include "paddle/phi/kernels/funcs/aligned_vector.h"
 #include "paddle/phi/kernels/funcs/cub.h"
@@ -218,6 +219,7 @@ __global__ void LayerNormForward(
     U *mean,
     U *var,
     float epsilon,
+    int64_t batch_size,
     int64_t feature_size,
     const float *dequant_out_scale_data = nullptr,
     const int quant_out_scale_offset = 0,
@@ -231,113 +233,116 @@ __global__ void LayerNormForward(
                                  // warpSize <= 1024/32 = 32;
   __shared__ U shared_var[32];
 
-  int64_t beg_idx =
-      (static_cast<int64_t>(blockIdx.x) * gridDim.y + blockIdx.y) *
-          feature_size +
-      threadIdx.x;
-  int64_t end_idx =
-      (static_cast<int64_t>(blockIdx.x) * gridDim.y + blockIdx.y + 1) *
-      feature_size;
+  const int64_t total_blocks = static_cast<int64_t>(gridDim.x) * gridDim.y;
+  const int64_t block_id =
+      static_cast<int64_t>(blockIdx.x) * gridDim.y + blockIdx.y;
+  for (int64_t row_idx = block_id; row_idx < batch_size;
+       row_idx += total_blocks) {
+    int64_t beg_idx =
+        row_idx * feature_size + static_cast<int64_t>(threadIdx.x);
+    int64_t end_idx = (row_idx + 1) * feature_size;
 
-  // Step 1: Reduce to calculate mean and var
-  U mean_val = 0;
-  U var_val = 0;
-  for (int64_t i = beg_idx; i < end_idx; i += BlockDim) {
-    U tmp = static_cast<U>(x[i]);
-    mean_val += tmp;
-    var_val += (tmp * tmp);
-  }
+    // Step 1: Reduce to calculate mean and var
+    U mean_val = 0;
+    U var_val = 0;
+    for (int64_t i = beg_idx; i < end_idx; i += BlockDim) {
+      U tmp = static_cast<U>(x[i]);
+      mean_val += tmp;
+      var_val += (tmp * tmp);
+    }
 
-  mean_val = BlockReduceSum<U>(mean_val, shared_mean);
-  var_val = BlockReduceSum<U>(var_val, shared_var);
+    mean_val = BlockReduceSum<U>(mean_val, shared_mean);
+    var_val = BlockReduceSum<U>(var_val, shared_var);
 
-  if (threadIdx.x == 0) {
-    auto scale = static_cast<U>(static_cast<float>(1.) /
-                                static_cast<float>(feature_size));
-    auto tmp = mean_val * scale;
-    mean[blockIdx.x] = mean_share = static_cast<U>(tmp);
-    var_share = static_cast<U>(var_val * scale - mean_share * mean_share);
-    var_share = var_share > U(0) ? var_share : U(0);
-    var[blockIdx.x] = var_share;
-  }
-  __syncthreads();
+    if (threadIdx.x == 0) {
+      auto scale = static_cast<U>(static_cast<float>(1.) /
+                                  static_cast<float>(feature_size));
+      auto tmp = mean_val * scale;
+      mean[row_idx] = mean_share = static_cast<U>(tmp);
+      var_share = static_cast<U>(var_val * scale - mean_share * mean_share);
+      var_share = var_share > U(0) ? var_share : U(0);
+      var[row_idx] = var_share;
+    }
+    __syncthreads();
 
-  mean_val = mean_share;
-  U invvar = rsqrt_<U>(var_share + static_cast<U>(epsilon));
+    mean_val = mean_share;
+    U invvar = rsqrt_<U>(var_share + static_cast<U>(epsilon));
 
-  // Step 2: Calculate y
-  if (scale != nullptr) {
-    if (bias != nullptr) {
-      for (int64_t i = beg_idx, j = threadIdx.x; i < end_idx;
-           i += BlockDim, j += BlockDim) {
-        if (std::is_same<OutType, int8_t>::value) {
-          y[i] = quant_helper(
-              static_cast<T>(static_cast<U>(scale[j]) *
-                                 (static_cast<U>(x[i]) - mean_val) * invvar +
-                             static_cast<U>(bias[j])),
-              quant_in_scale,
-              quant_round_type,
-              quant_max_bound,
-              quant_min_bound);
-        } else {
-          y[i] = static_cast<OutType>(static_cast<U>(scale[j]) *
-                                          (static_cast<U>(x[i]) - mean_val) *
-                                          invvar +
-                                      static_cast<U>(bias[j]));
+    // Step 2: Calculate y
+    if (scale != nullptr) {
+      if (bias != nullptr) {
+        for (int64_t i = beg_idx, j = threadIdx.x; i < end_idx;
+             i += BlockDim, j += BlockDim) {
+          if (std::is_same<OutType, int8_t>::value) {
+            y[i] = quant_helper(
+                static_cast<T>(static_cast<U>(scale[j]) *
+                                   (static_cast<U>(x[i]) - mean_val) * invvar +
+                               static_cast<U>(bias[j])),
+                quant_in_scale,
+                quant_round_type,
+                quant_max_bound,
+                quant_min_bound);
+          } else {
+            y[i] = static_cast<OutType>(static_cast<U>(scale[j]) *
+                                            (static_cast<U>(x[i]) - mean_val) *
+                                            invvar +
+                                        static_cast<U>(bias[j]));
+          }
+        }
+      } else {
+        for (int64_t i = beg_idx, j = threadIdx.x; i < end_idx;
+             i += BlockDim, j += BlockDim) {
+          if (std::is_same<OutType, int8_t>::value) {
+            y[i] = quant_helper(
+                static_cast<T>(static_cast<U>(scale[j]) *
+                               (static_cast<U>(x[i]) - mean_val) * invvar),
+                quant_in_scale,
+                quant_round_type,
+                quant_max_bound,
+                quant_min_bound);
+          } else {
+            y[i] = static_cast<OutType>(static_cast<U>(scale[j]) *
+                                        (static_cast<U>(x[i]) - mean_val) *
+                                        invvar);
+          }
         }
       }
-    } else {
-      for (int64_t i = beg_idx, j = threadIdx.x; i < end_idx;
-           i += BlockDim, j += BlockDim) {
-        if (std::is_same<OutType, int8_t>::value) {
-          y[i] = quant_helper(
-              static_cast<T>(static_cast<U>(scale[j]) *
-                             (static_cast<U>(x[i]) - mean_val) * invvar),
-              quant_in_scale,
-              quant_round_type,
-              quant_max_bound,
-              quant_min_bound);
-        } else {
-          y[i] =
-              static_cast<OutType>(static_cast<U>(scale[j]) *
-                                   (static_cast<U>(x[i]) - mean_val) * invvar);
+    } else {  // scale == nullptr
+      if (bias != nullptr) {
+        for (int64_t i = beg_idx, j = threadIdx.x; i < end_idx;
+             i += BlockDim, j += BlockDim) {
+          if (std::is_same<OutType, int8_t>::value) {
+            y[i] = quant_helper(
+                static_cast<T>((static_cast<U>(x[i]) - mean_val) * invvar +
+                               static_cast<U>(bias[j])),
+                quant_in_scale,
+                quant_round_type,
+                quant_max_bound,
+                quant_min_bound);
+          } else {
+            y[i] = static_cast<OutType>((static_cast<U>(x[i]) - mean_val) *
+                                            invvar +
+                                        static_cast<U>(bias[j]));
+          }
+        }
+      } else {
+        for (int64_t i = beg_idx, j = threadIdx.x; i < end_idx;
+             i += BlockDim, j += BlockDim) {
+          if (std::is_same<OutType, int8_t>::value) {
+            y[i] = quant_helper(
+                static_cast<T>((static_cast<U>(x[i]) - mean_val) * invvar),
+                quant_in_scale,
+                quant_round_type,
+                quant_max_bound,
+                quant_min_bound);
+          } else {
+            y[i] = static_cast<OutType>((static_cast<U>(x[i]) - mean_val) *
+                                        invvar);
+          }
         }
       }
     }
-  } else {  // scale == nullptr
-    if (bias != nullptr) {
-      for (int64_t i = beg_idx, j = threadIdx.x; i < end_idx;
-           i += BlockDim, j += BlockDim) {
-        if (std::is_same<OutType, int8_t>::value) {
-          y[i] = quant_helper(
-              static_cast<T>((static_cast<U>(x[i]) - mean_val) * invvar +
-                             static_cast<U>(bias[j])),
-              quant_in_scale,
-              quant_round_type,
-              quant_max_bound,
-              quant_min_bound);
-        } else {
-          y[i] =
-              static_cast<OutType>((static_cast<U>(x[i]) - mean_val) * invvar +
-                                   static_cast<U>(bias[j]));
-        }
-      }
-    } else {
-      for (int64_t i = beg_idx, j = threadIdx.x; i < end_idx;
-           i += BlockDim, j += BlockDim) {
-        if (std::is_same<OutType, int8_t>::value) {
-          y[i] = quant_helper(
-              static_cast<T>((static_cast<U>(x[i]) - mean_val) * invvar),
-              quant_in_scale,
-              quant_round_type,
-              quant_max_bound,
-              quant_min_bound);
-        } else {
-          y[i] =
-              static_cast<OutType>((static_cast<U>(x[i]) - mean_val) * invvar);
-        }
-      }
-    }
+    __syncthreads();
   }
 }
 
@@ -1564,43 +1569,48 @@ __global__ void LayerNormBackwardPostProcessToCalculateDX(
     const U *mean,
     const U *var,
     float epsilon,
+    int64_t batch_size,
     int64_t feature_size) {
   using BlockReduce = cub::BlockReduce<PairForLayerNorm<U>, BlockDim>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   __shared__ U d_x_reduce_tmp[2];
 
-  int64_t beg_idx = static_cast<int64_t>(blockIdx.x) * feature_size +
-                    static_cast<int64_t>(threadIdx.x);
-  int64_t end_idx = (static_cast<int64_t>(blockIdx.x) + 1) * feature_size;
+  for (int64_t row_idx = static_cast<int64_t>(blockIdx.x); row_idx < batch_size;
+       row_idx += static_cast<int64_t>(gridDim.x)) {
+    int64_t beg_idx =
+        row_idx * feature_size + static_cast<int64_t>(threadIdx.x);
+    int64_t end_idx = (row_idx + 1) * feature_size;
 
-  U block_mean = mean[blockIdx.x];
-  U block_var = var[blockIdx.x];
-  U d_x_mean_partial = static_cast<U>(0), d_x_var_partial = static_cast<U>(0);
-  for (int64_t i = beg_idx; i < end_idx; i += BlockDim) {
-    d_x_mean_partial += static_cast<U>(d_x[i]);
-    d_x_var_partial +=
-        static_cast<U>(d_x[i]) * (static_cast<U>(x[i]) - block_mean);
-  }
+    U block_mean = mean[row_idx];
+    U block_var = var[row_idx];
+    U d_x_mean_partial = static_cast<U>(0), d_x_var_partial = static_cast<U>(0);
+    for (int64_t i = beg_idx; i < end_idx; i += BlockDim) {
+      d_x_mean_partial += static_cast<U>(d_x[i]);
+      d_x_var_partial +=
+          static_cast<U>(d_x[i]) * (static_cast<U>(x[i]) - block_mean);
+    }
 
-  auto pair =
-      BlockReduce(temp_storage)
-          .Reduce(PairForLayerNorm<U>(d_x_mean_partial, d_x_var_partial),
-                  PairForLayerNormAddFunctor<U>());
+    auto pair =
+        BlockReduce(temp_storage)
+            .Reduce(PairForLayerNorm<U>(d_x_mean_partial, d_x_var_partial),
+                    PairForLayerNormAddFunctor<U>());
 
-  if (threadIdx.x == 0) {
-    d_x_reduce_tmp[0] = static_cast<float>(pair.first_) / feature_size;
-    d_x_reduce_tmp[1] =
-        static_cast<float>(pair.second_) /
-        (feature_size * (static_cast<float>(block_var) + epsilon));
-  }
-  __syncthreads();
+    if (threadIdx.x == 0) {
+      d_x_reduce_tmp[0] = static_cast<float>(pair.first_) / feature_size;
+      d_x_reduce_tmp[1] =
+          static_cast<float>(pair.second_) /
+          (feature_size * (static_cast<float>(block_var) + epsilon));
+    }
+    __syncthreads();
 
-  d_x_mean_partial = d_x_reduce_tmp[0];
-  d_x_var_partial = d_x_reduce_tmp[1];
-  for (int64_t i = beg_idx; i < end_idx; i += BlockDim) {
-    d_x[i] -= static_cast<T>(d_x_mean_partial);
-    d_x[i] -=
-        static_cast<T>((static_cast<U>(x[i]) - block_mean) * d_x_var_partial);
+    d_x_mean_partial = d_x_reduce_tmp[0];
+    d_x_var_partial = d_x_reduce_tmp[1];
+    for (int64_t i = beg_idx; i < end_idx; i += BlockDim) {
+      d_x[i] -= static_cast<T>(d_x_mean_partial);
+      d_x[i] -=
+          static_cast<T>((static_cast<U>(x[i]) - block_mean) * d_x_var_partial);
+    }
+    __syncthreads();
   }
 }
 
@@ -1614,52 +1624,57 @@ __global__ void LayerNormBackwardGradientOnlyDX(
     const U *var,
     const LayerNormScaleBiasT<T, U, ScaleBiasWithSameTypeX> *scale,
     float epsilon,
+    int64_t batch_size,
     int64_t feature_size) {
   using ScaleBiasT = LayerNormScaleBiasT<T, U, ScaleBiasWithSameTypeX>;
   using BlockReduce = cub::BlockReduce<PairForLayerNorm<U>, BlockDim>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   __shared__ U d_x_reduce_tmp[2];
 
-  int64_t beg_idx = static_cast<int64_t>(blockIdx.x) * feature_size +
-                    static_cast<int64_t>(threadIdx.x);
-  int64_t end_idx = (static_cast<int64_t>(blockIdx.x) + 1) * feature_size;
+  for (int64_t row_idx = static_cast<int64_t>(blockIdx.x); row_idx < batch_size;
+       row_idx += static_cast<int64_t>(gridDim.x)) {
+    int64_t beg_idx =
+        row_idx * feature_size + static_cast<int64_t>(threadIdx.x);
+    int64_t end_idx = (row_idx + 1) * feature_size;
 
-  U block_mean = mean[blockIdx.x], block_var = var[blockIdx.x];
-  U d_x_mean_partial = static_cast<U>(0), d_x_var_partial = static_cast<U>(0);
-  for (int64_t i = beg_idx; i < end_idx; i += BlockDim) {
-    auto var_val =
-        static_cast<U>(rsqrt_(static_cast<float>(block_var) + epsilon));
-    if (scale != nullptr) {
-      int col_idx = i % feature_size;
-      d_x[i] = static_cast<T>(static_cast<U>(d_y[i]) *
-                              static_cast<U>(scale[col_idx]) * var_val);
-    } else {
-      d_x[i] = static_cast<T>(static_cast<U>(d_y[i]) * var_val);
+    U block_mean = mean[row_idx], block_var = var[row_idx];
+    U d_x_mean_partial = static_cast<U>(0), d_x_var_partial = static_cast<U>(0);
+    for (int64_t i = beg_idx; i < end_idx; i += BlockDim) {
+      auto var_val =
+          static_cast<U>(rsqrt_(static_cast<float>(block_var) + epsilon));
+      if (scale != nullptr) {
+        int64_t col_idx = i - row_idx * feature_size;
+        d_x[i] = static_cast<T>(static_cast<U>(d_y[i]) *
+                                static_cast<U>(scale[col_idx]) * var_val);
+      } else {
+        d_x[i] = static_cast<T>(static_cast<U>(d_y[i]) * var_val);
+      }
+      d_x_mean_partial += static_cast<U>(d_x[i]);
+      d_x_var_partial +=
+          static_cast<U>(d_x[i]) * (static_cast<U>(x[i]) - block_mean);
     }
-    d_x_mean_partial += static_cast<U>(d_x[i]);
-    d_x_var_partial +=
-        static_cast<U>(d_x[i]) * (static_cast<U>(x[i]) - block_mean);
-  }
 
-  auto pair =
-      BlockReduce(temp_storage)
-          .Reduce(PairForLayerNorm<U>(d_x_mean_partial, d_x_var_partial),
-                  PairForLayerNormAddFunctor<U>());
+    auto pair =
+        BlockReduce(temp_storage)
+            .Reduce(PairForLayerNorm<U>(d_x_mean_partial, d_x_var_partial),
+                    PairForLayerNormAddFunctor<U>());
 
-  if (threadIdx.x == 0) {
-    d_x_reduce_tmp[0] = static_cast<float>(pair.first_) / feature_size;
-    d_x_reduce_tmp[1] =
-        static_cast<float>(pair.second_) /
-        (feature_size * (static_cast<float>(block_var) + epsilon));
-  }
-  __syncthreads();
+    if (threadIdx.x == 0) {
+      d_x_reduce_tmp[0] = static_cast<float>(pair.first_) / feature_size;
+      d_x_reduce_tmp[1] =
+          static_cast<float>(pair.second_) /
+          (feature_size * (static_cast<float>(block_var) + epsilon));
+    }
+    __syncthreads();
 
-  d_x_mean_partial = d_x_reduce_tmp[0];
-  d_x_var_partial = d_x_reduce_tmp[1];
-  for (int64_t i = beg_idx; i < end_idx; i += BlockDim) {
-    d_x[i] -= static_cast<T>(d_x_mean_partial);
-    d_x[i] -=
-        static_cast<T>((static_cast<U>(x[i]) - block_mean) * d_x_var_partial);
+    d_x_mean_partial = d_x_reduce_tmp[0];
+    d_x_var_partial = d_x_reduce_tmp[1];
+    for (int64_t i = beg_idx; i < end_idx; i += BlockDim) {
+      d_x[i] -= static_cast<T>(d_x_mean_partial);
+      d_x[i] -=
+          static_cast<T>((static_cast<U>(x[i]) - block_mean) * d_x_var_partial);
+    }
+    __syncthreads();
   }
 }
 
@@ -1675,11 +1690,8 @@ __global__ void LayerNormBackwardWhenBatchSizeIsOne(
     const LayerNormScaleBiasT<T, U, ScaleBiasWithSameTypeX> *scale,
     float epsilon,
     int64_t feature_size) {
-  int64_t idx =
-      static_cast<int64_t>(threadIdx.x) +
-      static_cast<int64_t>(blockIdx.x) * static_cast<int64_t>(blockDim.x);
   using ScaleBiasT = LayerNormScaleBiasT<T, U, ScaleBiasWithSameTypeX>;
-  if (idx < feature_size) {
+  CUDA_KERNEL_LOOP_TYPE(idx, feature_size, int64_t) {
     auto var_val = static_cast<U>(rsqrt_(static_cast<float>(var[0]) + epsilon));
     if (d_x != nullptr) {
       if (d_scale == nullptr) {
@@ -1731,32 +1743,33 @@ static void LayerNormBackward(
   auto stream = dev_ctx.stream();
   const int kMaxBlockDim = 512;
   const int kMaxBlockNum = 128;
+  const int64_t max_grid_dimx = dev_ctx.GetCUDAMaxGridDimSize()[0];
   int gradient_flag = ((d_x != nullptr ? 1 : 0) << 2) |
                       ((d_scale != nullptr ? 1 : 0) << 1) |
                       ((d_bias != nullptr ? 1 : 0));
   if (gradient_flag == 0) return;
   if (batch_size == 1) {
+    int64_t grid_x = (feature_size + kMaxBlockDim - 1) / kMaxBlockDim;
+    grid_x = std::min(grid_x, max_grid_dimx);
     LayerNormBackwardWhenBatchSizeIsOne<T, U, ScaleBiasWithSameTypeX>
-        <<<(feature_size + kMaxBlockDim - 1) / kMaxBlockDim,
-           kMaxBlockDim,
-           0,
-           stream>>>(x,
-                     d_y,
-                     d_x,
-                     d_scale,
-                     d_bias,
-                     mean,
-                     var,
-                     scale,
-                     epsilon,
-                     feature_size);
+        <<<grid_x, kMaxBlockDim, 0, stream>>>(x,
+                                              d_y,
+                                              d_x,
+                                              d_scale,
+                                              d_bias,
+                                              mean,
+                                              var,
+                                              scale,
+                                              epsilon,
+                                              feature_size);
 
     if (d_x != nullptr) {
+      int64_t post_grid = std::min(batch_size, max_grid_dimx);
       switch (GetDesiredBlockDim(feature_size)) {
         FIXED_BLOCK_DIM_CASE(
             LayerNormBackwardPostProcessToCalculateDX<T, U, kBlockDim>
-            <<<1, kBlockDim, 0, stream>>>(
-                x, d_x, mean, var, epsilon, feature_size));
+            <<<post_grid, kBlockDim, 0, stream>>>(
+                x, d_x, mean, var, epsilon, batch_size, feature_size));
       }
     }
     return;
@@ -1839,14 +1852,22 @@ static void LayerNormBackward(
       }
       break;
     case 4:  // d_x != nullptr, d_scale == nullptr, d_bias == nullptr
+      int64_t grad_only_grid = std::min(batch_size, max_grid_dimx);
       switch (GetDesiredBlockDim(feature_size)) {
         FIXED_BLOCK_DIM_CASE(
             LayerNormBackwardGradientOnlyDX<T,
                                             U,
                                             kBlockDim,
                                             ScaleBiasWithSameTypeX>
-            <<<batch_size, kBlockDim, 0, stream>>>(
-                x, d_y, d_x, mean, var, scale, epsilon, feature_size));
+            <<<grad_only_grid, kBlockDim, 0, stream>>>(x,
+                                                       d_y,
+                                                       d_x,
+                                                       mean,
+                                                       var,
+                                                       scale,
+                                                       epsilon,
+                                                       batch_size,
+                                                       feature_size));
       }
       break;
     case 5:  // d_x != nulptr, d_scale == nullptr, d_bias != nullptr
@@ -1873,11 +1894,12 @@ static void LayerNormBackward(
                                                   feature_size,
                                                   col_offset));
       }
+      int64_t post_grid = std::min(batch_size, max_grid_dimx);
       switch (GetDesiredBlockDim(feature_size)) {
         FIXED_BLOCK_DIM_CASE(
             LayerNormBackwardPostProcessToCalculateDX<T, U, kBlockDim>
-            <<<batch_size, kBlockDim, 0, stream>>>(
-                x, d_x, mean, var, epsilon, feature_size));
+            <<<post_grid, kBlockDim, 0, stream>>>(
+                x, d_x, mean, var, epsilon, batch_size, feature_size));
       }
       break;
     case 6:  // d_x != nullptr, d_scale != nullptr, d_bias == nullptr
@@ -1904,11 +1926,12 @@ static void LayerNormBackward(
                                                   feature_size,
                                                   col_offset));
       }
+      int64_t post_grid = std::min(batch_size, max_grid_dimx);
       switch (GetDesiredBlockDim(feature_size)) {
         FIXED_BLOCK_DIM_CASE(
             LayerNormBackwardPostProcessToCalculateDX<T, U, kBlockDim>
-            <<<batch_size, kBlockDim, 0, stream>>>(
-                x, d_x, mean, var, epsilon, feature_size));
+            <<<post_grid, kBlockDim, 0, stream>>>(
+                x, d_x, mean, var, epsilon, batch_size, feature_size));
       }
       break;
     case 7:  // d_x != nullptr, d_scale != nullptr, d_bias != nullptr
@@ -2007,10 +2030,13 @@ static void LayerNormBackward(
 #endif  // __GNUCC__
 
           dim3 threads1(BDIMX, block_dim_y, 1);
-#define IMPL_BACKWARD_FOR_INPUT(num)                                       \
-  LayerNormBackwardComputeGradInputWithSmallFeatureSize<T, U, ScaleT, num> \
-      <<<batch_size, threads1, 0, stream>>>(                               \
-          d_y, x, batch_size, feature_size, mean, var, epsilon, scale, d_x);
+#define IMPL_BACKWARD_FOR_INPUT(num)                                           \
+  do {                                                                         \
+    int64_t grad_grid = std::min(batch_size, max_grid_dimx);                   \
+    LayerNormBackwardComputeGradInputWithSmallFeatureSize<T, U, ScaleT, num>   \
+        <<<grad_grid, threads1, 0, stream>>>(                                  \
+            d_y, x, batch_size, feature_size, mean, var, epsilon, scale, d_x); \
+  } while (0)
 
           switch (real_vec) {
             case 4: {
@@ -2028,16 +2054,17 @@ static void LayerNormBackward(
         } else {
           constexpr int BDIMY3 = 4;
           dim3 threads1(BDIMX, BDIMY3, 1);
+          int64_t grad_grid = std::min(batch_size, max_grid_dimx);
           LayerNormBackwardComputeGradInput<T, U, BDIMX, BDIMY3, ScaleT>
-              <<<batch_size, threads1, 0, stream>>>(d_y,
-                                                    x,
-                                                    batch_size,
-                                                    feature_size,
-                                                    mean,
-                                                    var,
-                                                    epsilon,
-                                                    scale,
-                                                    d_x);
+              <<<grad_grid, threads1, 0, stream>>>(d_y,
+                                                   x,
+                                                   batch_size,
+                                                   feature_size,
+                                                   mean,
+                                                   var,
+                                                   epsilon,
+                                                   scale,
+                                                   d_x);
         }
 #ifdef PADDLE_WITH_CUDA
       }

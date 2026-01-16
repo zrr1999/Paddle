@@ -909,6 +909,7 @@ void LaunchLayernormResidualDropoutBias(
               mean,
               var,
               epsilon,
+              rows,
               cols));
       default:
         PADDLE_THROW(errors::InvalidArgument(
