@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "paddle/common/enforce.h"
 #include "paddle/phi/kernels/legacy/gpu/ext_build_src_rank_and_local_expert_id_kernel.h"
 #include "paddle/phi/backends/gpu/gpu_context.h"
 #include "paddle/phi/core/kernel_registry.h"
+#include <limits>
 
 namespace phi {
 
@@ -26,6 +28,7 @@ __global__ void build_srcrank_and_local_expert_id_kernel(
     int64_t total_num,
     int64_t num_total_experts,
     int64_t num_local_experts) {
+  // TODO(large-tensor): tid is int, may overflow if blockIdx.x * blockDim.x + threadIdx.x exceeds INT_MAX
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= num_total_experts) return;
   int64_t start = 0;
@@ -54,8 +57,16 @@ void build_srcrank_and_local_expert_id(T* src_rank,
   int64_t threads_per_block = 32;
   int64_t blocks =
       (num_total_experts + threads_per_block - 1) / threads_per_block;
+  // TODO(large-tensor): blocks may exceed CUDA grid limit
+  PADDLE_ENFORCE_LE(
+      blocks,
+      static_cast<int64_t>(std::numeric_limits<unsigned int>::max()),
+      common::errors::InvalidArgument(
+          "blocks (%ld) exceeds CUDA grid limit (%u)", blocks,
+          std::numeric_limits<unsigned int>::max()));
+  PADDLE_ENFORCE_LE_INT_MAX(threads_per_block, "threads_per_block");
   build_srcrank_and_local_expert_id_kernel<T, U>
-      <<<blocks, threads_per_block, 0, stream>>>(src_rank,
+      <<<static_cast<unsigned int>(blocks), static_cast<int>(threads_per_block), 0, stream>>>(src_rank,
                                                  local_expert_id,
                                                  expert_num,
                                                  total_num,
@@ -78,6 +89,7 @@ void BuildSrcRankAndLocalExpertIdKernel(
       expert_num_global_tensor.data<int64_t>();
 
   // Hard coded as ernie-core did.
+  // TODO(large-tensor): output type is int, but computed values may exceed INT_MAX
   int* src_rank_data = dev_ctx.template Alloc<int>(src_rank);
   int* local_expert_id_data = dev_ctx.template Alloc<int>(local_expert_id);
 

@@ -11,11 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "paddle/common/enforce.h"
 #include "paddle/phi/kernels/legacy/gpu/moe_combine_kernel.h"
 #include "paddle/phi/backends/gpu/gpu_context.h"
 #include "paddle/phi/core/dense_tensor.h"
 #include "paddle/phi/core/kernel_registry.h"
 #include "paddle/phi/kernels/full_kernel.h"
+#include <limits>
 
 namespace phi {
 
@@ -64,8 +66,15 @@ void combine_moe_kernelLauncher(const T* x,
 
   const int64_t threads = 1024;
   const int64_t blocks = (n + threads - 1) / threads;
+  // TODO(large-tensor): blocks may exceed CUDA grid/block limits
+  PADDLE_ENFORCE_LE(
+      blocks,
+      static_cast<int64_t>(std::numeric_limits<unsigned int>::max()),
+      common::errors::InvalidArgument(
+          "blocks (%ld) exceeds CUDA grid limit (%u)", blocks,
+          std::numeric_limits<unsigned int>::max()));
 
-  combine_moe_kernel<T><<<blocks, threads, 0, stream>>>(
+  combine_moe_kernel<T><<<static_cast<unsigned int>(blocks), static_cast<int>(threads), 0, stream>>>(
       x, combine_weights, scatter_index, y, k, seqlen, hidden_size, n);
 }
 

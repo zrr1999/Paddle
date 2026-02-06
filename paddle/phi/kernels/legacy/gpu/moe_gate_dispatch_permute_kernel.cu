@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "paddle/common/enforce.h"
 #include "paddle/phi/kernels/legacy/gpu/moe_gate_dispatch_permute_kernel.h"
 #include "paddle/phi/core/dense_tensor.h"
 #include "paddle/phi/core/kernel_registry.h"
@@ -59,6 +60,10 @@ void apply_moe_dispatch_fwd(const Context &dev_ctx,
               use_pad,
               stream);
 
+  // TODO(large-tensor): num_rows, hidden_size, k may exceed INT_MAX
+  PADDLE_ENFORCE_LE_INT_MAX(num_rows, "num_rows");
+  PADDLE_ENFORCE_LE_INT_MAX(hidden_size, "hidden_size");
+  PADDLE_ENFORCE_LE_INT_MAX(k, "k");
   initialize_moe_routing_permute_kernelLauncher(x,
                                                 y,
                                                 permuted_rows,

@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "paddle/common/enforce.h"
 #include "paddle/phi/kernels/legacy/gpu/cal_aux_loss_kernel.h"
 #include "paddle/phi/backends/gpu/gpu_context.h"
 #include "paddle/phi/core/dense_tensor.h"
 #include "paddle/phi/core/kernel_registry.h"
 #include "paddle/phi/kernels/funcs/math_cuda_utils.h"
+#include <limits>
 
 namespace phi {
 
@@ -184,8 +186,15 @@ void cal_aux_loss(const T* gate_prob,
                   cudaStream_t stream) {
   int64_t threads = 1024;
   threads = std::min(row_gate_prob, threads);
+  int64_t shared_mem_size = col_gate_prob * sizeof(int64_t);
+  // TODO(large-tensor): shared memory size may exceed CUDA limit
+  PADDLE_ENFORCE_LE(
+      shared_mem_size,
+      static_cast<int64_t>(48 * 1024),  // Typical CUDA shared memory limit per block
+      common::errors::InvalidArgument(
+          "Shared memory size (%ld) exceeds CUDA limit", shared_mem_size));
   cal_aux_loss_kernel<T>
-      <<<1, threads, col_gate_prob * sizeof(int64_t), stream>>>(
+      <<<1, static_cast<int>(threads), static_cast<size_t>(shared_mem_size), stream>>>(
           gate_prob,
           row_gate_prob,
           col_gate_prob,

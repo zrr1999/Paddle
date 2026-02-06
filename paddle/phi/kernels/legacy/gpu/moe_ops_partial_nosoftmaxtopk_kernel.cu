@@ -18,6 +18,7 @@
  *     https://github.com/NVIDIA/apex
  *     with minor changes. */
 
+#include "paddle/common/enforce.h"
 #include "paddle/phi/kernels/legacy/gpu/moe_ops_partial_nosoftmaxtopk_kernel.h"
 #include "paddle/phi/backends/gpu/gpu_context.h"
 #include "paddle/phi/core/dense_tensor.h"
@@ -27,6 +28,7 @@
 #include "paddle/phi/kernels/full_kernel.h"
 #include "paddle/phi/kernels/legacy/gpu/moe_fuse_op.h"
 #include "paddle/phi/kernels/slice_kernel.h"
+#include <limits>
 
 namespace phi {
 
@@ -138,12 +140,12 @@ void apply_moe_dispatch_fwd(
   // expert_for_source_row_tensor.data<int>(); paddle::Tensor active_cnt_tensor
   // = paddle::empty({1}, paddle::DataType::INT32, place);
 
-  int64_t bytes = getWorkspaceSize<T>(num_rows,
-                                      hidden_size,  // hidden-size=0
+  int64_t bytes = getWorkspaceSize<T>(static_cast<int>(num_rows),
+                                      static_cast<int>(hidden_size),  // hidden-size=0
                                       0,            // inter-size=0
-                                      num_experts,
-                                      capacity,
-                                      k,
+                                      static_cast<int>(num_experts),
+                                      static_cast<int>(capacity),
+                                      static_cast<int>(k),
                                       use_pad,
                                       sorter);
 
@@ -175,11 +177,17 @@ void apply_moe_dispatch_fwd(
   const int sorter_ws_size_bytes_seqsort =
       AlignTo16(sorter.getWorkspaceSize(capacity));
 
-  const int buf_size = AlignTo16(k * num_rows * hidden_size);
-  // const int interbuf_size  = AlignTo16(k * num_rows * 0);
-  const int padded_experts = AlignTo16(num_experts);
-  const int num_moe_inputs = AlignTo16(k * num_rows);
-  const int num_dispatched_size = AlignTo16(num_experts * capacity);
+  int64_t k_num_rows_hidden = k * num_rows * hidden_size;
+  const size_t buf_size = AlignTo16(static_cast<size_t>(k_num_rows_hidden));
+  // const size_t interbuf_size  = AlignTo16(static_cast<size_t>(k * num_rows * 0));
+
+  int64_t num_experts_capacity = num_experts * capacity;
+  const size_t padded_experts =
+      AlignTo16(static_cast<size_t>(num_experts));
+  const size_t num_moe_inputs =
+      AlignTo16(static_cast<size_t>(k * num_rows));
+  const size_t num_dispatched_size =
+      AlignTo16(static_cast<size_t>(num_experts_capacity));
 
   // 4:ints [k*row]
   source_rows_ = reinterpret_cast<int *>(ws_ptr);
@@ -208,9 +216,12 @@ void apply_moe_dispatch_fwd(
   // before_topk"));
 #endif
 
+  // TODO(large-tensor): num_rows * k may overflow for pointer offset
+  int64_t total_elements = num_rows * k;
+  PADDLE_ENFORCE_LE_INT_MAX(total_elements, "num_rows * k");
   thrust::transform(thrust::cuda::par.on(stream),
                     thrust::device_pointer_cast(source_rows_),
-                    thrust::device_pointer_cast(source_rows_) + num_rows * k,
+                    thrust::device_pointer_cast(source_rows_) + static_cast<int>(total_elements),
                     thrust::counting_iterator<int>(0),
                     thrust::device_pointer_cast(source_rows_),
                     [num_rows, k] __device__(int i, int cnt) {
@@ -236,17 +247,23 @@ void apply_moe_dispatch_fwd(
   compute_global_expert_offset(expert_id,
                                expert_id_,  // buffer
                                expert_offset_global,
-                               num_rows * k,
+                               k_num_rows,
                                num_experts,
                                capacity,
                                stream,
                                allocator);
 
   // modify expert-id according to k
+  // TODO(large-tensor): num_experts, expert_start_index, expert_end_index may exceed INT_MAX
+  PADDLE_ENFORCE_LE_INT_MAX(num_experts, "num_experts");
+  PADDLE_ENFORCE_LE_INT_MAX(expert_start_index, "expert_start_index");
+  PADDLE_ENFORCE_LE_INT_MAX(expert_end_index, "expert_end_index");
+  PADDLE_ENFORCE_LE_INT_MAX(k, "k");
+  PADDLE_ENFORCE_LE_INT_MAX(num_rows, "num_rows");
   modify_and_mask_expert_id_launcher(expert_id,
                                      expert_id_,
-                                     k,
-                                     num_rows,
+                                     static_cast<int>(k),
+                                     static_cast<int>(num_rows),
                                      static_cast<int>(num_experts),
                                      static_cast<int>(expert_start_index),
                                      static_cast<int>(expert_end_index),
@@ -263,12 +280,12 @@ void apply_moe_dispatch_fwd(
       permuted_experts_,  // key out // [num_row, k]: expert-id
       source_rows_,       // value in
       permuted_rows_,  // value out //[num_row, k]: id在原 activation 中的位置
-      k * num_rows,  // num_rows
+      static_cast<int>(k_num_rows),  // num_rows
       false,
       stream);
 
   unmodify_expert_id_launcher(
-      permuted_experts_, permuted_experts_, k, num_rows, num_experts, stream);
+      permuted_experts_, permuted_experts_, static_cast<int>(k), static_cast<int>(num_rows), num_experts, stream);
 
 #ifdef DEBUG_MOE_OP
   print_to_screen1<int>(
@@ -280,7 +297,7 @@ void apply_moe_dispatch_fwd(
   compute_local_expert_offset(permuted_experts_,
                               expert_offset_,
                               expert_nums_local,
-                              num_rows * k,
+                              k_num_rows,
                               num_experts,
                               capacity,
                               stream,
@@ -328,14 +345,14 @@ void apply_moe_dispatch_fwd(
         permuted_experts_,  // key out // [num_row, k]: expert-id
         permuted_rows_,     // value in
         permuted_rows_,  // value out //[num_row, k]: id在原 activation 中的位置
-        k * num_rows,  // num_rows
+        static_cast<int>(k_num_rows),  // num_rows
         false,
         stream);
 
     compute_local_expert_offset(permuted_experts_,
                                 expert_offset_,
                                 expert_nums_local,
-                                num_rows * k,
+                                k_num_rows,
                                 num_experts,
                                 capacity,
                                 stream,
@@ -362,11 +379,13 @@ void apply_moe_dispatch_fwd(
 #endif
   }
 
+  // TODO(large-tensor): num_experts * capacity may overflow for pointer offset
   thrust::fill(
       thrust::cuda::par.on(stream),
       thrust::device_ptr<int>(scatter_index_rev),
-      thrust::device_ptr<int>(scatter_index_rev) + num_experts * capacity,
-      num_rows);
+      thrust::device_ptr<int>(scatter_index_rev) + static_cast<int>(num_experts_capacity),
+      static_cast<int>(num_rows));
+  // TODO(large-tensor): num_rows and k may exceed INT_MAX
   build_seqsort_kv_pairs_kernel_launcher(
       scatter_index_rev,         // padded_to_unpermuted_input
       source_rows_for_seqsort_,  // seqsort-value
@@ -400,17 +419,22 @@ void apply_moe_dispatch_fwd(
           "scatter_index_rev after build_seqsort_kv_pairs_kernel_launcher"));
 #endif
   if (use_pad) {
-    for (auto iexpert = 0; iexpert != expert_end_index - expert_start_index;
-         ++iexpert) {
+    // TODO(large-tensor): expert_end_index - expert_start_index may exceed INT_MAX
+    int64_t num_experts_diff = expert_end_index - expert_start_index;
+    PADDLE_ENFORCE_LE_INT_MAX(num_experts_diff, "expert_end_index - expert_start_index");
+    for (int64_t iexpert = 0; iexpert != num_experts_diff; ++iexpert) {
+      // TODO(large-tensor): iexpert * capacity may overflow int
+      int64_t offset = iexpert * capacity;
+      PADDLE_ENFORCE_LE_INT_MAX(offset, "iexpert * capacity");
       sorter.run(fc1_result_,
                  sorter_ws_size_bytes_seqsort,
-                 scatter_index_rev + (iexpert * capacity),         // key in
-                 scatter_index_rev + (iexpert * capacity),         // key out
-                 source_rows_for_seqsort_ + (iexpert * capacity),  // value in
+                 scatter_index_rev + static_cast<int>(offset),         // key in
+                 scatter_index_rev + static_cast<int>(offset),         // key out
+                 source_rows_for_seqsort_ + static_cast<int>(offset),  // value in
                  source_rows_for_seqsort_ +
-                     (iexpert * capacity),  // value out //[num_row, k]: id在原
+                     static_cast<int>(offset),  // value out //[num_row, k]: id在原
                                             // activation 中的位置
-                 capacity,  // num_rows
+                 static_cast<int>(capacity),  // num_rows
                  false,
                  stream);
     }
@@ -433,21 +457,24 @@ void apply_moe_dispatch_fwd(
   }
   if (use_pad) {
     int64_t num_experts_diff = expert_end_index - expert_start_index;
-    y->Resize({num_experts_diff * capacity, x.dims()[1]});
+    // TODO(large-tensor): num_experts_diff * capacity may overflow
+    int64_t y_rows = num_experts_diff * capacity;
+    y->Resize({y_rows, x.dims()[1]});
     dev_ctx.template Alloc<T>(y);
   } else {
     y->Resize({expert_offset_host.back(), x.dims()[1]});
     dev_ctx.template Alloc<T>(y);
   }
   Full<T, Context>(dev_ctx, y->dims(), 0, y);
+  int64_t num_active = use_pad ? (expert_end_index - expert_start_index) * capacity
+              : expert_offset_host.back();
   copy_unpermuted_to_permuted_kernelLauncher(
       x.data<T>(),
       y->data<T>(),              // out
       scatter_index_rev,         // padded_out_to_unpermuted_input
       source_rows_for_seqsort_,  // padded_out_to_expanded_input
       scatter_index,             // out
-      use_pad ? (expert_end_index - expert_start_index) * capacity
-              : expert_offset_host.back(),  // num_active
+      num_active,  // num_active
       num_rows,
       k,
       hidden_size,
@@ -562,8 +589,10 @@ void MoeGateDispatchPartialNoSoftMaxTopkKernel(
   if (use_pad) {
     // scatter_index_rev = scatter_index_rev.slice(0, num_experts_diff *
     // capacity);
+    // TODO(large-tensor): num_experts_diff * capacity may overflow
+    int64_t slice_size = num_experts_diff * capacity;
     *scatter_index_rev = phi::Slice<int32_t, Context>(
-        dev_ctx, *scatter_index_rev, {0}, {0}, {num_experts_diff * capacity});
+        dev_ctx, *scatter_index_rev, {0}, {0}, {slice_size});
   } else {
     if (expert_offset_host.back() > 0) {
       // scatter_index_rev = scatter_index_rev.slice(0,

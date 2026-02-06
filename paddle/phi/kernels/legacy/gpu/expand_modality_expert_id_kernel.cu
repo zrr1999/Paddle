@@ -29,10 +29,12 @@ void expand_modality_expert_id(const T* expert_id,
                                int64_t modality_offset,
                                bool is_group_expert,
                                cudaStream_t stream) {
+  // TODO(large-tensor): seqlen * k may overflow or exceed pointer offset limit
+  int64_t total_elements = seqlen * k;
   thrust::transform(
       thrust::cuda::par.on(stream),
       thrust::device_pointer_cast(expert_id),
-      thrust::device_pointer_cast(expert_id) + seqlen * k,
+      thrust::device_pointer_cast(expert_id) + total_elements,
       thrust::counting_iterator<T>(0),
       thrust::device_pointer_cast(expert_id_out),
       [k,
