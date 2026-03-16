@@ -356,11 +356,6 @@ if(WITH_CUTLASS)
   add_definitions("-DPADDLE_WITH_MEMORY_EFFICIENT_ATTENTION"
   )# for memory_efficient_attention.h
 endif()
-if(WITH_GPU)
-  add_definitions(-DPADDLE_CROSS_ENTROPY_WARP_SIZE=32)
-else()
-  add_definitions(-DPADDLE_CROSS_ENTROPY_WARP_SIZE=64)
-endif()
 if(WITH_FLASHATTN)
   add_dependencies(phi flashattn)
 endif()
