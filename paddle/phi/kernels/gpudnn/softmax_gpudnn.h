@@ -26,12 +26,6 @@ limitations under the License. */
 #include "paddle/phi/backends/gpu/gpu_dnn.h"
 #include "paddle/phi/kernels/elementwise_multiply_kernel.h"
 
-#ifndef PADDLE_WARP_SIZE
-#define PADDLE_WARP_SIZE 32
-#endif
-#define PADDLE_WARP_MASK (PADDLE_WARP_SIZE - 1)
-#define PADDLE_WARP_SHIFT (PADDLE_WARP_SIZE == 64 ? 6 : 5)
-
 #define SOFTMAX_ALIGN_BYTES 16
 #define MATRIX_SOFTMAX_ALIGN_BYTES 16
 #define MATRIX_SOFTMAX_THRESHOLD 100000

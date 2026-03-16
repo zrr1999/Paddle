@@ -35,12 +35,6 @@ namespace phi {
 
 #define ALIGN_BYTES 16
 
-#ifndef PADDLE_WARP_SIZE
-#define PADDLE_WARP_SIZE 32
-#endif
-#define PADDLE_WARP_MASK (PADDLE_WARP_SIZE - 1)
-#define PADDLE_WARP_SHIFT (PADDLE_WARP_SIZE == 64 ? 6 : 5)
-
 enum class SoftmaxMode { kSoftmax, kLogSoftmax, kCrossEntropy };
 
 // Wrapper of log function. Use log(float32) for float16
